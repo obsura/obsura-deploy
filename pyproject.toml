@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "obsuractl"
+dynamic = ["version"]
+description = "Thin operator CLI for the obsura-deploy repository"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+build = ["pyinstaller>=6,<7"]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+obsuractl = "obsuractl.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "cli"}
+
+[tool.setuptools.dynamic]
+version = {attr = "obsuractl.version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["cli"]

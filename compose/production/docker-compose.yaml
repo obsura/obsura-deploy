@@ -2,14 +2,16 @@ name: obsura-production
 
 services:
   volume-init:
-    # Use the same image so the init step can discover the image's runtime UID/GID.
+    # Keep this aligned with the published image contract. The init step uses the
+    # image itself so it can discover the runtime UID/GID before the main service starts.
     image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
     restart: "no"
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command: |
-      uid="$(id -u obsura 2>/dev/null || echo 1000)"
-      gid="$(id -g obsura 2>/dev/null || echo 1000)"
+      runtime_user="${OBSURA_RUNTIME_USER:-obsura}"
+      uid="$(id -u "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_UID:-1000}")"
+      gid="$(id -g "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_GID:-1000}")"
       mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
       chown -R "${uid}:${gid}" /var/lib/obsura
       chmod -R u+rwX,go-rwx /var/lib/obsura
@@ -50,7 +52,8 @@ services:
       - backend
 
   api:
-    # Prefer a published digest here, not a mutable tag.
+    # Prefer a published digest here:
+    # ghcr.io/obsura/obsura-api@sha256:<published-digest>
     image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
     restart: unless-stopped
     init: true
@@ -71,6 +74,7 @@ services:
     cap_drop:
       - ALL
     pids_limit: 256
+    stop_grace_period: 30s
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
       - /run:size=16m,noexec,nosuid,nodev

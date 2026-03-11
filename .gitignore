@@ -9,6 +9,16 @@ artifacts/
 *.tmp
 *.bak
 
+# Python packaging and caches
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
+
 # Editor and OS noise
 .DS_Store
 Thumbs.db

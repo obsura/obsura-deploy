@@ -1,0 +1,191 @@
+name: Release Main
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Compile Python sources
+        run: python -m compileall cli/obsuractl
+
+  metadata:
+    name: Resolve release metadata
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Resolve stable version
+        id: meta
+        shell: bash
+        run: |
+          version="$(python scripts/read_obsuractl_version.py)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "obsuractl version must use X.Y.Z format, got: $version" >&2
+            exit 1
+          fi
+
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=v${version}" >> "$GITHUB_OUTPUT"
+          echo "release_name=obsuractl v${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Guard stable tag reuse
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.release_tag }}
+        run: |
+          git fetch --force --tags
+          if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
+            existing_commit="$(git rev-list -n 1 "$RELEASE_TAG")"
+            if [[ "$existing_commit" != "$GITHUB_SHA" ]]; then
+              echo "Tag $RELEASE_TAG already exists at $existing_commit. Bump cli/obsuractl/version.py before pushing to main." >&2
+              exit 1
+            fi
+          fi
+
+  build:
+    name: Build (${{ matrix.platform_os }}-${{ matrix.platform_arch }})
+    needs:
+      - validate
+      - metadata
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform_os: linux
+            platform_arch: amd64
+          - runner: windows-latest
+            platform_os: windows
+            platform_arch: amd64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[build]"
+
+      - name: Build release archive
+        run: >
+          python scripts/build_obsuractl_binary.py
+          --version-label ${{ needs.metadata.outputs.release_tag }}
+          --target-os ${{ matrix.platform_os }}
+          --target-arch ${{ matrix.platform_arch }}
+          --output-dir artifacts/release
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: obsuractl-${{ matrix.platform_os }}-${{ matrix.platform_arch }}
+          path: artifacts/release/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish stable release
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+      RELEASE_NAME: ${{ needs.metadata.outputs.release_name }}
+      RELEASE_VERSION: ${{ needs.metadata.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download built archives
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          pattern: obsuractl-*
+          merge-multiple: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate checksums
+        run: >
+          python scripts/write_checksums.py
+          --input-dir release-artifacts
+          --output release-artifacts/checksums.txt
+
+      - name: Write release notes
+        shell: bash
+        run: |
+          cat > release-notes.md <<EOF
+          Stable obsuractl operator binary release built from main.
+
+          Version source: cli/obsuractl/version.py
+          Version: ${RELEASE_VERSION}
+          Tag: ${RELEASE_TAG}
+          Assets:
+          - obsuractl_${RELEASE_TAG}_linux_amd64.zip
+          - obsuractl_${RELEASE_TAG}_windows_amd64.zip
+          - checksums.txt
+
+          GitHub marks this release as the latest stable release. No mutable Git tag named latest is used.
+          EOF
+
+      - name: Create or update stable release
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-artifacts/* --clobber
+            gh release edit "$RELEASE_TAG" --title "$RELEASE_NAME" --notes-file release-notes.md --latest
+          else
+            gh release create "$RELEASE_TAG" release-artifacts/* --title "$RELEASE_NAME" --notes-file release-notes.md --target "$GITHUB_SHA" --latest
+          fi

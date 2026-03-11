@@ -6,43 +6,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$RootDir = Resolve-Path (Join-Path $ScriptDir "..")
+. (Join-Path $ScriptDir "common.ps1")
+
+Assert-ObsuraEnvironment -Environment $Environment
+Assert-ObsuraDocker
+
+$RootDir = Get-ObsuraRepoRoot -ScriptPath $MyInvocation.MyCommand.Path
 $ComposeFile = Join-Path $RootDir "compose/$Environment/docker-compose.yaml"
 $GlobalEnv = Join-Path $RootDir "env/global.env"
 $ApiEnv = Join-Path $RootDir "env/api.env"
 $PostgresEnv = Join-Path $RootDir "env/postgres.env"
 
-foreach ($Path in @($ComposeFile, $GlobalEnv, $ApiEnv, $PostgresEnv)) {
-    if (-not (Test-Path $Path)) {
-        throw "Missing required file: $Path"
-    }
-}
+Assert-ObsuraFiles -Paths @($ComposeFile, $GlobalEnv, $ApiEnv, $PostgresEnv)
 
-$Vars = @{}
-foreach ($Line in Get-Content $GlobalEnv, $PostgresEnv) {
-    if (-not $Line -or $Line.Trim().StartsWith("#")) {
-        continue
-    }
+$Vars = Get-ObsuraEnvMap -Paths @($GlobalEnv)
+Assert-ObsuraRealImageReference -Vars $Vars
 
-    $Name, $Value = $Line -split "=", 2
-    if (-not $Name) {
-        continue
-    }
-
-    $Vars[$Name.Trim()] = $Value.Trim().Trim('"')
-}
-
-if (-not $Vars.ContainsKey("OBSURA_API_IMAGE") -or $Vars["OBSURA_API_IMAGE"] -match "replace-with-") {
-    throw "Set OBSURA_API_IMAGE in env/global.env to a published tag or digest before updating."
-}
-
-$ComposeArgs = @(
-    "compose"
-    "--env-file", $GlobalEnv
-    "--env-file", $PostgresEnv
-    "--env-file", $ApiEnv
-    "-f", $ComposeFile
-)
+$ComposeArgs = Get-ObsuraComposeArgs -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv
+Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $Vars["OBSURA_API_IMAGE"]
 
 Write-Host "Validating compose configuration for $Environment..."
 docker @ComposeArgs config | Out-Null

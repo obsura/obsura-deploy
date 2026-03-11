@@ -1,57 +1,65 @@
 # Production Deployment
 
-The production stack is a single-host Docker Compose deployment intended to sit behind a reverse proxy such as Caddy or Nginx.
+The production stack is a single-host Docker Compose deployment intended to run behind a reverse proxy such as Caddy or Nginx.
 
-## Production Expectations
+`obsuractl` is an operator convenience layer for this model, not a separate platform. Direct Compose and helper-script workflows remain supported.
 
-- `obsura-api` stays bound to localhost by default
-- PostgreSQL is internal only and is not published to the host
-- the public edge is a reverse proxy handling TLS and external exposure
-- persistent data lives in named Docker volumes
-- image references should be pinned to immutable digests when available
+## Production Assumptions
 
-## Prepare Environment Files
+- `obsura-api` binds to localhost only by default
+- PostgreSQL stays internal to the Compose network
+- TLS termination happens at the reverse proxy
+- persistent data is stored in named Docker volumes
+- operators pin tested images, preferably by digest
 
-Create these files from the examples:
+This repository does not claim to be a full hardening solution. It provides a production-minded baseline.
+
+## Prepare Env Files
+
+Create:
 
 - `env/global.env`
 - `env/api.env`
 - `env/postgres.env`
 
-Set at minimum:
+Required production edits:
 
-- `OBSURA_API_IMAGE`
-- `POSTGRES_PASSWORD`
-- optional volume names if you want host-specific naming
-- `OBSURA_API_HOST_PORT` if the proxy should target a port other than `8000`
+- set `OBSURA_API_IMAGE` to the exact image you intend to deploy
+- replace `POSTGRES_PASSWORD`
+- keep `OBSURA_API_BIND_ADDRESS=127.0.0.1` unless you deliberately want host-wide exposure
 
-## Image Reference Guidance
+## Image References
 
-Preferred production form:
+Preferred:
 
 ```text
 OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api@sha256:<published-digest>
 ```
 
-Readable but less strict form:
+Acceptable for evaluation but weaker:
 
 ```text
 OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api:<release-tag>
 ```
 
-Use tags during evaluation if needed, but promote a tested digest into production once you know the exact image you want to keep.
+Do not do blind production updates against mutable tags if you care about reproducibility.
 
 ## Deploy
 
+Recommended:
+
 ```bash
-./scripts/deploy.sh production
+obsuractl doctor production
+obsuractl up production
 ```
 
-```powershell
-./scripts/deploy.ps1 -Environment production
+Helper script:
+
+```bash
+bash scripts/deploy.sh production
 ```
 
-Equivalent manual command:
+Manual Compose:
 
 ```bash
 docker compose \
@@ -62,34 +70,34 @@ docker compose \
   up -d
 ```
 
-## Startup Order
+## Why Localhost Binding Is Used
 
-1. `volume-init` prepares the application data volume permissions.
-2. `postgres` starts and must pass its healthcheck.
-3. `api` starts only after storage initialization and PostgreSQL health succeed.
+The API is published to the host on `127.0.0.1:<port>` by default so the reverse proxy is the only Internet-facing component. That makes TLS policy, headers, logging, and future rate-limiting an explicit edge concern instead of an accidental property of the application container.
 
 ## Reverse Proxy Expectation
 
-Keep the API bound to `127.0.0.1`. Point Caddy or Nginx to:
+Both example proxy configs assume the API target is:
 
 ```text
 http://127.0.0.1:8000
 ```
 
-`8000` is the default host port from `env/global.env`. If you change `OBSURA_API_HOST_PORT`, update the proxy target to match.
+If you change `OBSURA_API_HOST_PORT`, update the proxy target to match.
 
-Example configs live in:
+Example configs:
 
 - `proxy/caddy/Caddyfile.example`
 - `proxy/nginx/nginx.conf.example`
 
-## Verification After Deploy
+## Verification
 
-- `docker compose --env-file env/global.env --env-file env/postgres.env --env-file env/api.env -f compose/production/docker-compose.yaml ps`
-- `curl http://127.0.0.1:8000/api/v1/health` if you kept the default host port
-- verify the proxy can reach the local API target
-- inspect recent logs if healthchecks do not pass
+- `obsuractl status production`
+- `curl http://127.0.0.1:8000/api/v1/health`
+- verify proxy reachability through the public hostname
+- inspect recent container logs
 
-## Notes
+## Operational Caveats
 
-This repository cannot guarantee that every future image will preserve the same runtime UID, writable paths, or schema behavior. When the published image contract changes, update this repository and validate the deployment flow before rolling forward.
+- If the image runtime user changes, update the `volume-init` logic before rollout.
+- If the release changes schema or storage behavior, treat the upgrade as data-affecting.
+- Compose is a solid single-host choice here, but it is not a replacement for host hardening, patching, monitoring, or off-host backups.

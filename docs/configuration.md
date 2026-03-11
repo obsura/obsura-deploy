@@ -1,42 +1,51 @@
 # Configuration
 
-Configuration is split between compose interpolation values, application runtime values, and PostgreSQL runtime values.
+Configuration is intentionally split by concern.
 
-## Files
+## Env File Layout
 
 - `env/global.env`
   Shared Compose interpolation values such as image references, bind address, published port, volume names, and backup root.
 - `env/api.env`
-  Non-secret application settings passed directly to the `obsura-api` container.
+  Non-secret application runtime settings passed to the `obsura-api` container.
 - `env/postgres.env`
   PostgreSQL database name, user, password, and init arguments.
 
-## How Values Flow
+## Interpolation Expectations
 
-- The helper scripts pass `env/global.env`, `env/postgres.env`, and `env/api.env` to `docker compose`.
-- The compose files use interpolation from the env files for image names, volume names, and the API `DATABASE_URL`.
-- The `api` service also loads `env/api.env` as container environment.
-- The `postgres` service loads `env/postgres.env` as container environment.
+The compose files build `DATABASE_URL` from values stored in `env/postgres.env`. That means manual Compose commands must pass all three env files:
 
-## Important Wiring Detail
-
-`DATABASE_URL` is assembled in the compose files from `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD`. Keep those values correct in `env/postgres.env`.
-
-Example:
-
-```text
-DATABASE_URL=postgresql+psycopg://obsura:<password>@postgres:5432/obsura
+```bash
+docker compose \
+  --env-file env/global.env \
+  --env-file env/postgres.env \
+  --env-file env/api.env \
+  -f compose/production/docker-compose.yaml \
+  config
 ```
 
-## Override Rules
+If you pass only one env file, Compose interpolation can fail even though the container-level `env_file` entries look correct.
 
-- Compose `environment` values override `env_file` values for the same variable.
-- Local and production compose files force `OBSURA_ENV` to `development` or `production` respectively.
-- `OBSURA_STORAGE_ROOT` is set by compose to `/var/lib/obsura` so the container uses the mounted persistent volume.
+## App Settings vs Database Settings
 
-## Secrets Handling
+Application settings belong in `env/api.env`. Database settings belong in `env/postgres.env`. Shared deployment and Compose settings belong in `env/global.env`.
 
-- do not commit real `env/*.env` files
-- keep real passwords out of shell history when possible
-- rotate database credentials through your normal operator process
-- treat backup artifacts as sensitive because they contain database contents
+Current important wiring:
+
+- `OBSURA_ENV` is set by the compose file, not by `env/api.env`
+- `OBSURA_STORAGE_ROOT` is set by the compose file to `/var/lib/obsura`
+- `DATABASE_URL` is assembled by the compose file from PostgreSQL env values
+
+## Secrets Placement
+
+- Keep real `env/*.env` files out of version control.
+- Put real database credentials in `env/postgres.env`.
+- Treat backup artifacts as sensitive because they contain live data.
+- If you have a stronger secret distribution process, adapt this repository around it rather than committing secrets here.
+
+## Practical Rules
+
+- Keep env files in plain `KEY=value` form.
+- Replace every placeholder before production use.
+- Prefer image digests over tags in production.
+- Change volume names only if the host needs naming isolation.

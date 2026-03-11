@@ -1,6 +1,6 @@
 root = true
 
-[*.{md,yaml,yml,env,example,sh,ps1}]
+[*.{md,yaml,yml,env,example,sh,ps1,py,toml}]
 charset = utf-8
 end_of_line = lf
 insert_final_newline = true
@@ -11,6 +11,3 @@ trim_trailing_whitespace = false
 
 [*.ps1]
 end_of_line = crlf
-
-[Makefile]
-indent_style = tab

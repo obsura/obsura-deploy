@@ -1,33 +1,56 @@
 # Upgrades
 
-Upgrade by changing the image reference in `env/global.env`, validating it, taking a backup, and then running the update workflow.
+Upgrade by changing the image reference, validating the deployment, and recreating services against the new image.
 
 ## Recommended Procedure
 
-1. Read the release notes for the new `obsura-api` image.
-2. Record the currently deployed image reference.
-3. Run a backup:
+1. Read the release notes for the target `obsura-api` image.
+2. Record the currently deployed tag or digest.
+3. Take a backup.
+4. Change `OBSURA_API_IMAGE` in `env/global.env`.
+5. Run the update workflow.
+6. Verify health, logs, and expected behavior.
 
-   ```bash
-   ./scripts/backup.sh production
-   ```
+Recommended commands:
 
-4. Change `OBSURA_API_IMAGE` in `env/global.env` to the new tag or digest.
-5. Pull and recreate services:
+```bash
+obsuractl backup production
+obsuractl update production
+obsuractl status production
+```
 
-   ```bash
-   ./scripts/update.sh production
-   ```
+`obsuractl update production` uses the image reference currently written in `env/global.env`. It does not discover or select an image for you.
 
-6. Verify:
-   - `docker compose ... ps`
-   - `curl http://127.0.0.1:8000/api/v1/health`
-   - application logs
+Script form:
 
-## Tag Versus Digest
+```bash
+bash scripts/backup.sh production
+bash scripts/update.sh production
+```
 
-Prefer switching production to a digest after validation. A digest lets you prove that the image you tested is the one you deployed.
+Direct manual Compose is still supported if you prefer not to use the CLI or scripts.
 
-## Schema And Data Risk
+## Tags vs Digests
 
-This repository does not own application migrations. If a release changes schema or storage behavior, a rollback may require both reverting the image and restoring a pre-upgrade backup. Treat upgrades as data-affecting operations unless release notes say otherwise.
+Prefer promoting a tested digest into production rather than following a mutable tag indefinitely.
+
+Good:
+
+```text
+OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api@sha256:<published-digest>
+```
+
+Weaker:
+
+```text
+OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api:<release-tag>
+```
+
+## Verify After Upgrade
+
+- `obsuractl doctor production`
+- `obsuractl status production`
+- `curl http://127.0.0.1:8000/api/v1/health`
+- recent `api` and `postgres` logs
+
+If the release can affect schema or stored data, treat rollback as a restore-capable operation, not only an image swap.

@@ -3,55 +3,33 @@ set -euo pipefail
 
 ENVIRONMENT="${1:-production}"
 
-case "$ENVIRONMENT" in
-  local|production) ;;
-  *)
-    echo "Usage: $0 [local|production]" >&2
-    exit 1
-    ;;
-esac
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+. "$SCRIPT_DIR/common.sh"
+
+obsura_require_environment "$ENVIRONMENT"
+obsura_require_docker
+
+ROOT_DIR="$(obsura_repo_root "${BASH_SOURCE[0]}")"
 COMPOSE_FILE="$ROOT_DIR/compose/$ENVIRONMENT/docker-compose.yaml"
 GLOBAL_ENV="$ROOT_DIR/env/global.env"
 API_ENV="$ROOT_DIR/env/api.env"
 POSTGRES_ENV="$ROOT_DIR/env/postgres.env"
 
-for file in "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV"; do
-  if [[ ! -f "$file" ]]; then
-    echo "Missing required file: $file" >&2
-    exit 1
-  fi
-done
+obsura_require_files "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV"
 
-set -a
-. "$GLOBAL_ENV"
-. "$POSTGRES_ENV"
-set +a
+OBSURA_API_IMAGE="$(obsura_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE || true)"
+obsura_require_real_image_reference "$OBSURA_API_IMAGE"
 
-if [[ -z "${OBSURA_API_IMAGE:-}" || "${OBSURA_API_IMAGE}" == *"replace-with-"* ]]; then
-  echo "Set OBSURA_API_IMAGE in env/global.env to a published tag or digest before updating." >&2
-  exit 1
-fi
-
-compose() {
-  docker compose \
-    --env-file "$GLOBAL_ENV" \
-    --env-file "$POSTGRES_ENV" \
-    --env-file "$API_ENV" \
-    -f "$COMPOSE_FILE" \
-    "$@"
-}
+obsura_print_stack_context "$ENVIRONMENT" "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV" "$OBSURA_API_IMAGE"
 
 echo "Validating compose configuration for $ENVIRONMENT..."
-compose config > /dev/null
+obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" config > /dev/null
 
 echo "Pulling updated images..."
-compose pull
+obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" pull
 
 echo "Recreating services with the current image references..."
-compose up -d --remove-orphans
+obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" up -d --remove-orphans
 
 echo "Current service state:"
-compose ps
+obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" ps

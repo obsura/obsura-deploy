@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate (${{ matrix.platform_os }}-${{ matrix.platform_arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform_os: linux
+            platform_arch: amd64
+          - runner: windows-latest
+            platform_os: windows
+            platform_arch: amd64
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev,build]"
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Compile Python sources
+        run: python -m compileall cli/obsuractl
+
+      - name: Build binary smoke archive
+        run: >
+          python scripts/build_obsuractl_binary.py
+          --version-label ci-smoke
+          --target-os ${{ matrix.platform_os }}
+          --target-arch ${{ matrix.platform_arch }}
+          --output-dir artifacts/ci

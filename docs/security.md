@@ -1,45 +1,57 @@
-# Security Notes
+# Security
 
-This repository aims for practical hardening, not perfect isolation.
+This repository follows practical least-privilege defaults. It does not pretend Docker Compose alone makes the stack fully hardened.
 
-## Current Hardening Measures
+## Current Hardening Approach
 
-- `obsura-api` is exposed on localhost only by default
-- PostgreSQL is not published to the host
-- `obsura-api` uses a read-only root filesystem
-- `obsura-api` drops Linux capabilities with `cap_drop: [ALL]`
-- `obsura-api` and `postgres` set `no-new-privileges`
-- temporary writable paths use `tmpfs` where practical
-- service startup waits for storage initialization and database health
+- API is published on localhost only by default
+- PostgreSQL is internal only and not published to the host
+- API root filesystem is read-only
+- API drops Linux capabilities with `cap_drop: [ALL]`
+- API and PostgreSQL set `no-new-privileges:true`
+- writable temporary paths use `tmpfs` where practical
+- container startup waits on storage initialization and PostgreSQL health
 
-## Why Localhost Binding Is The Default
+## Why Operational Simplicity Matters
 
-Binding the API to `127.0.0.1` narrows accidental exposure and makes the public edge explicit. TLS, request filtering, and Internet-facing policy should live in a reverse proxy rather than directly on the application container.
+Operational simplicity is part of the security posture here.
 
-## Why A Reverse Proxy Is Recommended
+- Compose files stay first-class so operators can inspect the real runtime model.
+- Scripts stay usable so recovery does not depend on one entrypoint.
+- `obsuractl` stays thin so it does not hide behavior behind a private control plane.
 
-Use Caddy or Nginx in front of the API for:
+That transparency reduces risk. When operators can see which compose file, env files, image reference, and backup path are in use, incident response is faster and mistakes are easier to catch.
+
+## Why PostgreSQL Stays Internal
+
+The application and database are meant to communicate over the internal Compose network. Publishing PostgreSQL to the host adds exposure and operator footguns that this repository does not need for normal operation.
+
+## Reverse Proxy Recommendation
+
+Run Caddy or Nginx in front of the API for:
 
 - TLS termination
-- host and header policy
-- access logging
-- future rate limiting or edge controls
+- request logging
+- header policy
+- future edge controls
 
-## Volume Permissions
+The API container is not meant to be the public edge by default.
 
-The `volume-init` service exists because the API image runs as a non-root user and still needs a writable data volume. The init step prepares `/var/lib/obsura` for that runtime user. If the image changes its UID, GID, or username, revisit the init command before deploying new images.
+## Storage Permissions
 
-## Secrets Hygiene
+The published image is expected to run as a non-root user while still needing write access to its persistent storage. The `volume-init` helper prepares the named volume accordingly. If the image changes usernames or numeric IDs, revise that init step before rollout.
 
-- keep real env files out of version control
-- use strong random database passwords
-- restrict backup file access
-- prefer digests in production so you know exactly what image you approved
+## Secret Hygiene
 
-## Public Versus Internal Services
+- do not commit real env files
+- use strong random PostgreSQL passwords
+- restrict access to backup directories
+- rotate credentials through your normal operator process
 
-- public edge: reverse proxy only
-- local host exposure: `obsura-api`
-- internal only: PostgreSQL
+## Hardening Limits
 
-Do not publish PostgreSQL ports to the host unless you have a specific operational reason and compensating controls.
+- host patching is still your job
+- backup encryption and off-host retention are still your job
+- reverse proxy tuning is still your job
+- container isolation does not replace OS-level hardening
+- full monitoring and observability stacks still belong to dedicated external tooling

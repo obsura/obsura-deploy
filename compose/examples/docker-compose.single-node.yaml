@@ -7,8 +7,9 @@ services:
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command: |
-      uid="$(id -u obsura 2>/dev/null || echo 1000)"
-      gid="$(id -g obsura 2>/dev/null || echo 1000)"
+      runtime_user="obsura"
+      uid="$(id -u "${runtime_user}" 2>/dev/null || echo 1000)"
+      gid="$(id -g "${runtime_user}" 2>/dev/null || echo 1000)"
       mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
       chown -R "${uid}:${gid}" /var/lib/obsura
       chmod -R u+rwX,go-rwx /var/lib/obsura
@@ -21,7 +22,8 @@ services:
     environment:
       POSTGRES_DB: obsura
       POSTGRES_USER: obsura
-      POSTGRES_PASSWORD: replace-with-strong-password
+      POSTGRES_PASSWORD: change-me-long-random-password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -33,19 +35,23 @@ services:
       start_period: 20s
 
   api:
+    # Replace with a release tag for evaluation, or a published digest for production.
     image: ghcr.io/obsura/obsura-api:replace-with-release-tag
     restart: unless-stopped
-    env_file:
-      - ../../env/api.env
-    environment:
-      OBSURA_ENV: production
-      OBSURA_STORAGE_ROOT: /var/lib/obsura
-      DATABASE_URL: postgresql+psycopg://obsura:replace-with-strong-password@postgres:5432/obsura
     depends_on:
       postgres:
         condition: service_healthy
       volume-init:
         condition: service_completed_successfully
+    environment:
+      OBSURA_ENV: production
+      OBSURA_STORAGE_ROOT: /var/lib/obsura
+      OBSURA_API_V1_PREFIX: /api/v1
+      OBSURA_MEDIA_MOUNT_PATH: /media
+      OBSURA_AUTO_CREATE_SCHEMA: "true"
+      OBSURA_RETAIN_SOURCE_CONTENT_BY_DEFAULT: "false"
+      OBSURA_IMAGE_OUTPUT_FORMAT: PNG
+      DATABASE_URL: postgresql+psycopg://obsura:change-me-long-random-password@postgres:5432/obsura
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -53,6 +59,7 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=64m,noexec,nosuid,nodev
+      - /run:size=16m,noexec,nosuid,nodev
     volumes:
       - obsura-data:/var/lib/obsura
     ports:

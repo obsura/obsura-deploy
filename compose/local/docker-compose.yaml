@@ -7,8 +7,9 @@ services:
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command: |
-      uid="$(id -u obsura 2>/dev/null || echo 1000)"
-      gid="$(id -g obsura 2>/dev/null || echo 1000)"
+      runtime_user="${OBSURA_RUNTIME_USER:-obsura}"
+      uid="$(id -u "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_UID:-1000}")"
+      gid="$(id -g "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_GID:-1000}")"
       mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
       chown -R "${uid}:${gid}" /var/lib/obsura
       chmod -R u+rwX,go-rwx /var/lib/obsura
@@ -40,6 +41,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-3}
     networks:
       - backend
 

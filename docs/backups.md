@@ -1,26 +1,41 @@
 # Backups
 
-The current backup model is intentionally simple:
+The backup model in this repository is intentionally simple and readable:
 
-- logical PostgreSQL dump
-- tar archive of the Obsura application data volume
+- PostgreSQL logical dump
+- tar archive of the Obsura storage volume
+- metadata about the image and storage volume used at backup time
 
-This is enough for first-stage operations, but it is not point-in-time recovery.
+This is enough for first-stage self-hosted operations. It is not point-in-time recovery.
 
-## What The Scripts Capture
+## What The Helpers Create
 
-`scripts/backup.sh` and `scripts/backup.ps1` create:
+Each backup set contains:
 
 - `postgres.sql`
 - `obsura-data.tgz`
 - `metadata.txt`
 
-By default these land under `backups/<environment>/<timestamp>/`.
+Default location:
+
+```text
+backups/<environment>/<timestamp>/
+```
 
 ## Run A Backup
 
+Recommended:
+
 ```bash
-./scripts/backup.sh production
+obsuractl backup production
+```
+
+`obsuractl backup` is a wrapper around the documented backup scripts. It does not implement a separate backup engine.
+
+Scripts:
+
+```bash
+bash scripts/backup.sh production
 ```
 
 ```powershell
@@ -29,21 +44,32 @@ By default these land under `backups/<environment>/<timestamp>/`.
 
 ## Restore Expectations
 
-The restore scripts:
+Restore is full replacement, not selective recovery. The documented restore workflow:
 
-- stop the API
-- start PostgreSQL if needed
-- replace the Obsura data volume contents
-- drop and recreate the target database
-- load the SQL dump
-- re-run `volume-init`
-- start the full stack
+1. stops the API
+2. starts PostgreSQL if needed
+3. replaces the app data volume contents
+4. drops and recreates the target database
+5. loads the SQL dump
+6. re-runs storage initialization
+7. starts the full stack
 
-That means restore is a full replacement of the current database and app data volume, not a selective recovery tool.
+Recommended command:
 
-## Operational Guidance
+```bash
+obsuractl restore production backups/production/<timestamp> --yes
+```
 
-- test backups and restores before depending on them
-- protect backup files like production data
-- take a backup before every production upgrade
-- store critical backups off-host if you care about host failure scenarios
+## What This Repo Automates
+
+- creating a logical PostgreSQL dump
+- archiving the app data volume
+- restoring those artifacts back into the Compose-managed volumes
+
+## What This Repo Does Not Automate
+
+- off-host backup shipping
+- backup encryption
+- retention policy
+- point-in-time recovery
+- cross-host disaster recovery testing
