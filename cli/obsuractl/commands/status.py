@@ -4,11 +4,31 @@ import argparse
 
 from .. import config
 from ..helpers import compose_command, ensure_stack_access, print_compose_manual_equivalent, print_stack_context, run
+from ..ui import add_command_parser
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("status", help="show service status for a named environment")
-    parser.add_argument("environment", choices=config.VALID_ENVIRONMENTS)
+    parser = add_command_parser(
+        subparsers,
+        "status",
+        summary="Show service and container status for a named environment.",
+        purpose=(
+            "Inspect the current Compose state without changing the stack.",
+            "Status is the quickest way to confirm container names, health, and restart state.",
+        ),
+        wraps=("docker compose ps",),
+        examples=(
+            "obsuractl status local",
+            "obsuractl status production",
+        ),
+        notes=("Use obsuractl logs when you need detailed service output.",),
+    )
+    parser.add_argument(
+        "environment",
+        choices=config.VALID_ENVIRONMENTS,
+        metavar="{local|production}",
+        help="Target stack environment.",
+    )
     parser.set_defaults(handler=handle)
 
 

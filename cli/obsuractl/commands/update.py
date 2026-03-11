@@ -4,11 +4,34 @@ import argparse
 
 from .. import config
 from ..helpers import ensure_stack_ready, print_script_manual_equivalent, print_stack_context, run, script_command
+from ..ui import add_command_parser
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("update", help="pull newer images and recreate the selected environment")
-    parser.add_argument("environment", choices=config.VALID_ENVIRONMENTS)
+    parser = add_command_parser(
+        subparsers,
+        "update",
+        summary="Pull newer images and recreate the selected environment.",
+        purpose=(
+            "Run the documented update workflow using the current OBSURA_API_IMAGE from env/global.env.",
+            "This command does not invent image state. It uses the image reference already written in the repo checkout.",
+        ),
+        wraps=("scripts/update.sh <environment>", "scripts/update.ps1 -Environment <environment>"),
+        examples=(
+            "obsuractl update local",
+            "obsuractl update production",
+        ),
+        notes=(
+            "Set OBSURA_API_IMAGE to a reviewed tag or digest before updating.",
+            "For production, prefer an immutable digest over a mutable tag.",
+        ),
+    )
+    parser.add_argument(
+        "environment",
+        choices=config.VALID_ENVIRONMENTS,
+        metavar="{local|production}",
+        help="Target stack environment.",
+    )
     parser.set_defaults(handler=handle)
 
 

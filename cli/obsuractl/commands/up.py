@@ -4,11 +4,35 @@ import argparse
 
 from .. import config
 from ..helpers import ensure_stack_ready, print_script_manual_equivalent, print_stack_context, run, script_command
+from ..ui import add_command_parser
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("up", help="start a named environment stack")
-    parser.add_argument("environment", choices=config.VALID_ENVIRONMENTS)
+    parser = add_command_parser(
+        subparsers,
+        "up",
+        summary="Start a named environment stack.",
+        purpose=(
+            "Run the documented deploy workflow for the selected environment.",
+            "This command validates the env files first, then shells out to scripts/deploy.*.",
+        ),
+        wraps=("scripts/deploy.sh <environment>", "scripts/deploy.ps1 -Environment <environment>"),
+        examples=(
+            "obsuractl up local",
+            "obsuractl up production",
+            "obsuractl --repo-root /srv/obsura-deploy up production",
+        ),
+        notes=(
+            "Run obsuractl init and obsuractl doctor before the first start.",
+            "The production stack still binds the API to localhost by default.",
+        ),
+    )
+    parser.add_argument(
+        "environment",
+        choices=config.VALID_ENVIRONMENTS,
+        metavar="{local|production}",
+        help="Target stack environment.",
+    )
     parser.set_defaults(handler=handle)
 
 

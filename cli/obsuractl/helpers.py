@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 from . import config
+from . import ui
 
 
 class UserError(RuntimeError):
@@ -42,10 +43,10 @@ def run(
     echo: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     if echo:
-        print(f"$ {format_command(command)}")
+        print(ui.command_text(f"$ {format_command(command)}"))
     completed = subprocess.run(
         list(command),
-        cwd=str(cwd or config.PROJECT_ROOT),
+        cwd=str(cwd or config.repo_root()),
         text=True,
         capture_output=capture_output,
         check=False,
@@ -106,11 +107,12 @@ def compose_command(stack: config.StackPaths, *compose_args: str) -> list[str]:
 
 
 def script_command(script_name: str, *script_args: str) -> list[str]:
+    scripts_dir = config.scripts_dir()
     if os.name == "nt":
-        script = config.SCRIPTS_DIR / f"{script_name}.ps1"
+        script = scripts_dir / f"{script_name}.ps1"
         command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)]
     else:
-        script = config.SCRIPTS_DIR / f"{script_name}.sh"
+        script = scripts_dir / f"{script_name}.sh"
         command = ["bash", str(script)]
     command.extend(script_args)
     return command
@@ -177,6 +179,11 @@ def collect_stack_access_result(environment: str) -> DoctorResult:
     if missing_env_files:
         for missing in missing_env_files:
             result.errors.append(f"Missing env file: {missing}")
+        result.warnings.append(
+            "Run "
+            f"`{suggested_init_command(stack)}` "
+            "to create env files from the examples."
+        )
         return result
 
     if docker_path and stack.compose_file.exists():
@@ -240,11 +247,11 @@ def collect_doctor_result(environment: str) -> DoctorResult:
 def print_doctor_result(result: DoctorResult, *, include_infos: bool = True) -> None:
     if include_infos:
         for line in result.infos:
-            print(f"[ok] {line}")
+            print(f"{ui.status_label('ok')} {line}")
     for line in result.warnings:
-        print(f"[warn] {line}")
+        print(f"{ui.status_label('warn')} {line}")
     for line in result.errors:
-        print(f"[error] {line}")
+        print(f"{ui.status_label('error')} {line}")
 
 
 def print_stack_context(
@@ -260,56 +267,78 @@ def print_stack_context(
     bind_address = values.get("OBSURA_API_BIND_ADDRESS")
     host_port = values.get("OBSURA_API_HOST_PORT")
 
-    print(f"Action: {action}")
-    print(f"Environment: {stack.environment}")
-    print(f"Compose file: {stack.compose_file}")
-    print("Env files:")
+    print(f"{ui.key_label('Action:')} {action}")
+    print(f"{ui.key_label('Repository root:')} {stack.repo_root}")
+    print(f"{ui.key_label('Environment:')} {stack.environment}")
+    print(f"{ui.key_label('Compose file:')} {stack.compose_file}")
+    print(ui.key_label("Env files:"))
     for path in stack.env_files:
         print(f"  - {path}")
     if current_image:
-        print(f"Configured API image: {current_image}")
+        print(f"{ui.key_label('Configured API image:')} {current_image}")
     if target_image:
-        print(f"Requested API image: {target_image}")
+        print(f"{ui.key_label('Requested API image:')} {target_image}")
     if bind_address and host_port:
-        print(f"Published API target: {bind_address}:{host_port}")
+        print(f"{ui.key_label('Published API target:')} {bind_address}:{host_port}")
     if services:
-        print(f"Services: {', '.join(services)}")
+        print(f"{ui.key_label('Services:')} {', '.join(services)}")
     if backup_path:
-        print(f"Backup path: {backup_path}")
+        print(f"{ui.key_label('Backup path:')} {backup_path}")
 
 
 def print_compose_manual_equivalent(stack: config.StackPaths, *compose_args: str) -> None:
     command = compose_command(stack, *compose_args)
-    print("Manual equivalent:")
-    print(f"  {format_command(command)}")
+    print(ui.key_label("Manual equivalent:"))
+    print(f"  {ui.command_text(format_command(command))}")
 
 
 def print_script_manual_equivalent(script_name: str, *script_args: str) -> None:
     command = script_command(script_name, *script_args)
-    print("Wrapped command:")
-    print(f"  {format_command(command)}")
+    print(ui.key_label("Wrapped command:"))
+    print(f"  {ui.command_text(format_command(command))}")
 
 
 def print_doctor_target(environment: str) -> None:
     stack = config.resolve_stack(environment)
-    print(f"Doctor target: {stack.environment}")
-    print(f"Compose file: {stack.compose_file}")
-    print("Expected env files:")
+    print(f"{ui.key_label('Repository root:')} {stack.repo_root}")
+    print(f"{ui.key_label('Doctor target:')} {stack.environment}")
+    print(f"{ui.key_label('Compose file:')} {stack.compose_file}")
+    print(ui.key_label("Expected env files:"))
     for path in stack.env_files:
         print(f"  - {path}")
 
 
 def ensure_stack_ready(environment: str) -> config.StackPaths:
+    stack = config.resolve_stack(environment)
     result = collect_doctor_result(environment)
     print_doctor_result(result, include_infos=False)
     if not result.ok:
-        raise UserError("doctor checks failed")
-    return config.resolve_stack(environment)
+        missing_env_files = [path for path in stack.env_files if not path.exists()]
+        if missing_env_files:
+            raise UserError(
+                f"missing env files for {environment}; run `{suggested_init_command(stack)}` and then edit "
+                f"`{stack.global_env}` and `{stack.postgres_env}`"
+            )
+        raise UserError(f"doctor checks failed for {environment}")
+    return stack
 
 
 def ensure_stack_access(environment: str) -> config.StackPaths:
+    stack = config.resolve_stack(environment)
     result = collect_stack_access_result(environment)
     print_doctor_result(result, include_infos=False)
     if not result.ok:
-        raise UserError("stack access checks failed")
-    return config.resolve_stack(environment)
+        missing_env_files = [path for path in stack.env_files if not path.exists()]
+        if missing_env_files:
+            raise UserError(
+                f"missing env files for {environment}; run `{suggested_init_command(stack)}` before retrying"
+            )
+        raise UserError(f"stack access checks failed for {environment}")
+    return stack
+
+
+def suggested_init_command(stack: config.StackPaths) -> str:
+    current_dir = Path.cwd().resolve()
+    if current_dir == stack.repo_root or stack.repo_root in current_dir.parents:
+        return "obsuractl init"
+    return f"obsuractl --repo-root {stack.repo_root} init"

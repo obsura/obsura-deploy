@@ -11,14 +11,34 @@ from ..helpers import (
     run,
     script_command,
 )
+from ..ui import add_command_parser
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser(
+    parser = add_command_parser(
+        subparsers,
         "rollback",
-        help="set a previously approved image reference and recreate the selected environment",
+        summary="Set a previously approved image reference and recreate the selected environment.",
+        purpose=(
+            "Write a reviewed tag or digest into env/global.env, then run the documented update workflow.",
+            "Rollback is explicit. You must provide the exact target image reference.",
+        ),
+        wraps=("scripts/rollback.sh <environment> <image>", "scripts/rollback.ps1 -Environment <environment> -ToImage <image>"),
+        examples=(
+            "obsuractl rollback production --to-image ghcr.io/obsura/obsura-api@sha256:<digest>",
+            "obsuractl rollback local --to-image ghcr.io/obsura/obsura-api:0.1.1",
+        ),
+        notes=(
+            "Rollback changes env/global.env in the selected checkout.",
+            "Use a previously validated tag or digest. Do not guess.",
+        ),
     )
-    parser.add_argument("environment", choices=config.VALID_ENVIRONMENTS)
+    parser.add_argument(
+        "environment",
+        choices=config.VALID_ENVIRONMENTS,
+        metavar="{local|production}",
+        help="Target stack environment.",
+    )
     parser.add_argument(
         "--to-image",
         required=True,

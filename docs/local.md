@@ -4,6 +4,8 @@ The local stack uses released container images. That keeps testing and operator 
 
 `obsuractl`, the helper scripts, and direct Compose commands all operate on the same local stack definition. The CLI is optional.
 
+If you are using a standalone `obsuractl` binary, run it from inside the `obsura-deploy` checkout or pass `--repo-root /path/to/obsura-deploy`.
+
 ## Prerequisites
 
 - Docker Engine
@@ -17,6 +19,14 @@ The local stack uses released container images. That keeps testing and operator 
 ## Environment Setup
 
 Copy the example env files first:
+
+Recommended with `obsuractl`:
+
+```bash
+obsuractl init
+```
+
+Manual equivalent:
 
 ```bash
 cp env/global.env.example env/global.env
@@ -93,6 +103,7 @@ docker compose \
 ## Common Local Issues
 
 - Port conflict on `127.0.0.1:8000`: change `OBSURA_API_HOST_PORT` or stop the other process.
+- Missing `env/*.env` files: run `obsuractl init` from the checkout, then edit `env/global.env` and `env/postgres.env`.
 - Placeholder image reference: replace `OBSURA_API_IMAGE` with a real published tag.
 - Placeholder password: replace `POSTGRES_PASSWORD` before starting.
 - Storage permission failure: inspect `volume-init` logs and confirm the published image still exposes the expected runtime user.

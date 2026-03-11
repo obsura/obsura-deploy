@@ -15,6 +15,84 @@ The same CLI is also shipped as standalone GitHub Release binaries for supported
 
 Do not think of `obsuractl` as a platform. It is not a control plane, not a monitoring system, and not a hidden orchestration layer.
 
+## Repository Checkout Requirement
+
+`obsuractl` operates on an `obsura-deploy` repository checkout. The binary and the repository are separate things:
+
+- the binary provides the command
+- the repository checkout provides `compose/`, `env/`, `scripts/`, and docs
+
+By default `obsuractl` searches from the current working directory upward until it finds an `obsura-deploy` checkout.
+
+Explicit override options:
+
+- `obsuractl --repo-root /path/to/obsura-deploy ...`
+- `OBSURA_DEPLOY_ROOT=/path/to/obsura-deploy`
+
+If env files are missing after discovery, run:
+
+```bash
+obsuractl init
+```
+
+If you are running the standalone binary from outside the checkout, use:
+
+```bash
+obsuractl --repo-root /path/to/obsura-deploy init
+```
+
+## Built-In Help
+
+`obsuractl` now treats terminal help as a first-class operator surface, not just a flag dump.
+
+- top-level help: `obsuractl --help`
+- command help: `obsuractl <command> --help`
+- version: `obsuractl --version`
+
+The built-in help includes:
+
+- quick-start examples
+- per-command examples
+- notes about what each command wraps
+- repo discovery guidance
+- Linux man-page hints
+
+## Color Output
+
+On interactive terminals, `obsuractl` uses ANSI color for:
+
+- success, warning, and error markers
+- command hints and wrapped command output
+- help headings and examples
+
+Controls:
+
+- auto: `obsuractl --color auto`
+- force: `obsuractl --color always`
+- disable: `obsuractl --color never`
+- shortcut disable: `obsuractl --no-color`
+- environment disable: `NO_COLOR=1`
+
+For Linux operators, `--color always` is useful when piping through tools that preserve ANSI escapes.
+
+## Linux Man Page
+
+This repository now ships a man page at [../man/obsuractl.1](../man/obsuractl.1).
+
+Quick use from the repository:
+
+```bash
+man ./man/obsuractl.1
+```
+
+Optional install on a Linux host:
+
+```bash
+install -Dm644 man/obsuractl.1 /usr/local/share/man/man1/obsuractl.1
+mandb
+man obsuractl
+```
+
 ## Design Philosophy
 
 `obsuractl` is intentionally thin:
@@ -129,8 +207,12 @@ Underneath that script-level rollback path, the deployment model is still the sa
 ## Examples
 
 ```bash
+obsuractl --help
+obsuractl up --help
 obsuractl init
 obsuractl doctor local
+obsuractl --repo-root /srv/obsura-deploy doctor production
+obsuractl --repo-root /srv/obsura-deploy init
 obsuractl up local
 obsuractl logs local api --follow
 obsuractl doctor production
@@ -147,6 +229,9 @@ obsuractl restore production backups/production/20260311-210000 --yes
 - `update` and `rollback` use whatever image reference is written in `env/global.env`.
 - `doctor` warns when production is using a tag instead of a digest.
 - `backup` and `restore` print the backup path and storage volume they touch.
+- `doctor`, `up`, and the other stack commands act on the discovered repository checkout, so verify the reported repository root when using a standalone binary.
+- If `up` or `status` reports missing `env/*.env` files, the usual fix is `obsuractl init`, followed by editing `env/global.env` and `env/postgres.env`.
+- If you need plain output for logs or automation, use `--no-color` or `NO_COLOR=1`.
 
 ## Out Of Scope
 

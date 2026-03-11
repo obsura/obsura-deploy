@@ -1,0 +1,185 @@
+.TH OBSURACTL 1 "March 2026" "obsura-deploy" "Obsura Operator Commands"
+.SH NAME
+obsuractl \- operator CLI for an obsura-deploy checkout
+.SH SYNOPSIS
+.B obsuractl
+.RB [ \-\-repo-root " PATH" ]
+.RB [ \-\-color " {auto,always,never}" ]
+.RB [ \-\-no-color ]
+.RB [ \-\-version ]
+.I <command>
+.RI [ options ]
+.PP
+.B obsuractl
+.I <command>
+.B \-\-help
+.SH DESCRIPTION
+.B obsuractl
+is a thin operator tool for the
+.B obsura-deploy
+repository. It wraps the documented Docker Compose and script workflows used to run released Obsura services.
+.PP
+It is not a control plane, not a monitoring backend, not a secret manager, and not a replacement for Docker Compose.
+.SH REPOSITORY MODEL
+.B obsuractl
+operates on an
+.B obsura-deploy
+repository checkout.
+.PP
+The binary provides the command.
+The repository checkout provides:
+.IP \(bu 2
+.B compose/
+for stack definitions
+.IP \(bu 2
+.B env/
+for operator-managed configuration
+.IP \(bu 2
+.B scripts/
+for the wrapped deploy, update, backup, restore, and rollback workflows
+.PP
+Repository discovery rules:
+.IP "1." 4
+Search upward from the current working directory.
+.IP "2." 4
+Use
+.B \-\-repo-root /path/to/obsura-deploy
+if the checkout is elsewhere.
+.IP "3." 4
+Use
+.B OBSURA_DEPLOY_ROOT=/path/to/obsura-deploy
+for an environment-level override.
+.SH QUICK START
+.nf
+obsuractl init
+$EDITOR env/global.env
+$EDITOR env/postgres.env
+obsuractl doctor local
+obsuractl up local
+.fi
+.PP
+If you run the standalone binary from outside the repository:
+.nf
+obsuractl --repo-root /srv/obsura-deploy init
+obsuractl --repo-root /srv/obsura-deploy doctor production
+obsuractl --repo-root /srv/obsura-deploy up production
+.fi
+.SH COMMANDS
+.TP
+.B init
+Create missing
+.B env/*.env
+files from the committed example templates.
+.TP
+.B doctor
+Validate Docker, Docker Compose, env files, image references, and Compose wiring.
+.TP
+.B up
+Start a named environment stack through the documented deploy workflow.
+.TP
+.B down
+Stop a named environment stack and remove orphaned containers.
+.TP
+.B restart
+Restart the whole stack or selected services.
+.TP
+.B status
+Show container and service status using
+.BR "docker compose ps" .
+.TP
+.B logs
+Show logs for the whole stack or selected services.
+.TP
+.B update
+Pull newer images and recreate the selected environment using the current image reference from
+.BR env/global.env .
+.TP
+.B rollback
+Write a reviewed image tag or digest into
+.B env/global.env
+and recreate the selected environment.
+.TP
+.B backup
+Run the documented backup workflow for PostgreSQL and persistent app data.
+.TP
+.B restore
+Run the documented restore workflow. This is destructive and requires
+.BR \-\-yes .
+.SH COLORS
+On interactive terminals,
+.B obsuractl
+uses ANSI color by default for help output, status markers, and command hints.
+.PP
+Color controls:
+.IP \(bu 2
+.B \-\-color auto
+Use color only when the output stream looks interactive.
+.IP \(bu 2
+.B \-\-color always
+Force ANSI color output, useful on Linux when piping through tools that preserve escape sequences.
+.IP \(bu 2
+.B \-\-color never
+Disable ANSI color output.
+.IP \(bu 2
+.B \-\-no-color
+Shortcut for
+.BR \-\-color " never" .
+.IP \(bu 2
+.B NO_COLOR=1
+Disable color through the standard environment convention.
+.SH EXAMPLES
+.nf
+obsuractl doctor local
+obsuractl up production
+obsuractl logs production api --follow
+obsuractl backup production --output-dir /srv/backups/obsura/nightly-test
+obsuractl rollback production --to-image ghcr.io/obsura/obsura-api@sha256:<digest>
+obsuractl restore production backups/production/20260311-210000 --yes
+.fi
+.SH FILES
+.TP
+.B env/global.env
+Global operator-managed values, including
+.BR OBSURA_API_IMAGE .
+.TP
+.B env/api.env
+Application runtime values.
+.TP
+.B env/postgres.env
+PostgreSQL runtime values.
+.TP
+.B compose/local/docker-compose.yaml
+Local stack definition.
+.TP
+.B compose/production/docker-compose.yaml
+Production-minded stack definition.
+.TP
+.B docs/cli.md
+Extended markdown documentation.
+.SH MANUAL OPERATION
+Every
+.B obsuractl
+workflow has a manual equivalent. Examples:
+.PP
+.nf
+bash scripts/deploy.sh production
+bash scripts/update.sh production
+bash scripts/backup.sh production
+docker compose --env-file env/global.env --env-file env/postgres.env --env-file env/api.env -f compose/production/docker-compose.yaml ps
+.fi
+.PP
+The repository remains usable without the CLI.
+.SH EXIT STATUS
+.B 0
+means success.
+.PP
+.B 1
+means the requested command failed validation or the wrapped command failed.
+.SH SEE ALSO
+.BR docker (1),
+.BR docker-compose (1)
+.PP
+Project documentation:
+.B README.md
+and
+.BR docs/cli.md .

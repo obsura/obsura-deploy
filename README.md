@@ -37,7 +37,27 @@ The structure is designed so `obsura-web` can be added later without changing th
 
 ## Quick Start
 
-1. Create local env files from the templates.
+1. Optional but recommended: install the operator CLI, or download a standalone binary from GitHub Releases.
+
+```bash
+python -m pip install -e .
+```
+
+If you are using a downloaded `obsuractl` binary instead of an editable install, run it from inside the `obsura-deploy` checkout or pass the checkout explicitly:
+
+```bash
+obsuractl --repo-root /path/to/obsura-deploy doctor local
+```
+
+2. Create local env files from the templates.
+
+Recommended with `obsuractl`:
+
+```bash
+obsuractl init
+```
+
+Manual equivalent:
 
 ```bash
 cp env/global.env.example env/global.env
@@ -51,17 +71,11 @@ Copy-Item env/api.env.example env/api.env
 Copy-Item env/postgres.env.example env/postgres.env
 ```
 
-2. Edit `env/global.env` and `env/postgres.env`.
+3. Edit `env/global.env` and `env/postgres.env`.
 
 - Set `OBSURA_API_IMAGE` to a real published image reference.
 - Replace `POSTGRES_PASSWORD` with a strong random value.
 - Leave `OBSURA_API_BIND_ADDRESS=127.0.0.1` unless you have a deliberate reason to expose the API differently.
-
-3. Optional but recommended: install the operator CLI.
-
-```bash
-python -m pip install -e .
-```
 
 4. Validate the stack.
 
@@ -160,6 +174,8 @@ It is not:
 Common commands:
 
 ```bash
+obsuractl --help
+obsuractl up --help
 obsuractl init
 obsuractl doctor production
 obsuractl up production
@@ -172,6 +188,35 @@ obsuractl restore production backups/production/<timestamp> --yes
 ```
 
 Manual equivalents remain first-class and documented. The CLI wraps those workflows; it does not define a parallel deployment architecture.
+
+Help and manual:
+
+- built-in help: `obsuractl --help`
+- per-command help: `obsuractl <command> --help`
+- Linux man page in the repo: `man ./man/obsuractl.1`
+
+Color output:
+
+- default: automatic on interactive terminals
+- disable: `--no-color` or `NO_COLOR=1`
+- force ANSI color on Linux: `--color always`
+
+Repository discovery:
+
+- default behavior: search from the current directory upward for an `obsura-deploy` checkout
+- explicit override: `obsuractl --repo-root /path/to/obsura-deploy ...`
+- environment override: `OBSURA_DEPLOY_ROOT=/path/to/obsura-deploy`
+
+Typical first-run flow with a downloaded binary:
+
+```bash
+cd /path/to/obsura-deploy
+obsuractl init
+$EDITOR env/global.env
+$EDITOR env/postgres.env
+obsuractl doctor local
+obsuractl up local
+```
 
 ## GitHub Release Model
 
@@ -230,6 +275,7 @@ obsura-deploy/
 |-- cli/
 |   `-- obsuractl/
 |-- docs/
+|-- man/
 |-- proxy/
 |   |-- caddy/
 |   `-- nginx/
@@ -249,3 +295,4 @@ obsura-deploy/
 - [docs/rollback.md](docs/rollback.md)
 - [docs/backups.md](docs/backups.md)
 - [docs/releases.md](docs/releases.md)
+- [man/obsuractl.1](man/obsuractl.1)

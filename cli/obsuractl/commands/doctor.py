@@ -4,11 +4,35 @@ import argparse
 
 from .. import config
 from ..helpers import collect_doctor_result, print_doctor_result, print_doctor_target, UserError
+from ..ui import add_command_parser
 
 
 def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) -> None:
-    parser = subparsers.add_parser("doctor", help="validate docker, env files, and compose wiring")
-    parser.add_argument("environment", choices=config.VALID_ENVIRONMENTS)
+    parser = add_command_parser(
+        subparsers,
+        "doctor",
+        summary="Validate Docker, env files, image references, and Compose wiring.",
+        purpose=(
+            "Run preflight checks before starting, updating, or restoring a stack.",
+            "Doctor verifies Docker, Compose, env files, placeholder values, and basic port assumptions.",
+        ),
+        wraps=("docker compose config",),
+        examples=(
+            "obsuractl doctor local",
+            "obsuractl doctor production",
+            "obsuractl --repo-root /srv/obsura-deploy doctor production",
+        ),
+        notes=(
+            "Production warns when OBSURA_API_IMAGE uses a mutable tag instead of an immutable digest.",
+            "If env files are missing, run obsuractl init first.",
+        ),
+    )
+    parser.add_argument(
+        "environment",
+        choices=config.VALID_ENVIRONMENTS,
+        metavar="{local|production}",
+        help="Target stack environment.",
+    )
     parser.set_defaults(handler=handle)
 
 
