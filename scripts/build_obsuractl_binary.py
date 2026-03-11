@@ -8,8 +8,6 @@ import sys
 import zipfile
 from pathlib import Path
 
-from PIL import Image
-
 try:
     from scripts.read_obsuractl_version import read_version
 except ModuleNotFoundError:
@@ -42,6 +40,14 @@ def sorted_icon_sizes(pngs: list[Path]) -> list[int]:
 
 
 def create_windows_icon(repo_root: Path, build_dir: Path) -> Path:
+    try:
+        from PIL import Image
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Pillow is required to generate the Windows obsuractl icon. "
+            'Install build dependencies with `python -m pip install -e ".[build]"`.'
+        ) from exc
+
     pngs = icon_pngs(repo_root)
     sizes = sorted_icon_sizes(pngs)
     largest_png = asset_dir(repo_root) / f"obsura-icon-{sizes[-1]}.png"
