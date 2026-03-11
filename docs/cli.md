@@ -47,6 +47,11 @@ Archive naming:
 - `obsuractl_<version>_<os>_<arch>.zip`
 - `checksums.txt`
 
+Binary branding assets:
+
+- source artwork lives under [../cli/assets](../cli/assets)
+- Windows builds generate an `.ico` from those assets and embed it in `obsuractl.exe`
+
 ## What It Wraps
 
 - `compose/local/docker-compose.yaml`

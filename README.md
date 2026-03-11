@@ -195,6 +195,11 @@ Supported binary assets today:
 - `linux-amd64`
 - `windows-amd64`
 
+Binary branding source:
+
+- release build assets live under [cli/assets](cli/assets)
+- Windows binaries generate and embed an `.ico` from those assets during the PyInstaller build
+
 Asset naming:
 
 - `obsuractl_<version>_<os>_<arch>.zip`

@@ -89,6 +89,16 @@ Current release matrix:
 
 `linux-arm64` and `macos-arm64` are intentionally not shipped in the first release workflow. The current matrix stays limited to the platforms we can validate cleanly in the repository today.
 
+## Binary Branding Assets
+
+Release build artwork lives under [../cli/assets](../cli/assets).
+
+- Windows builds generate a `.ico` file from the committed PNG assets.
+- The generated icon is embedded into `obsuractl.exe` during the PyInstaller build.
+- Windows builds also embed file version and product metadata so the executable is identifiable in Explorer and release archives.
+
+This keeps binary branding deterministic and tied to the repository, not to ad hoc CI state.
+
 ## Asset Naming
 
 Release assets use deterministic names:

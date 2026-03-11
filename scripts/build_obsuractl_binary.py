@@ -1,11 +1,109 @@
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+from PIL import Image
+
+try:
+    from scripts.read_obsuractl_version import read_version
+except ModuleNotFoundError:
+    from read_obsuractl_version import read_version
+
+
+def asset_dir(repo_root: Path) -> Path:
+    return repo_root / "cli" / "assets"
+
+
+def icon_pngs(repo_root: Path) -> list[Path]:
+    assets = asset_dir(repo_root)
+    pngs = sorted(assets.glob("obsura-icon-*.png"))
+    if not pngs:
+        raise FileNotFoundError(f"No icon PNG assets found under {assets}")
+    return pngs
+
+
+def sorted_icon_sizes(pngs: list[Path]) -> list[int]:
+    sizes: list[int] = []
+    for png in pngs:
+        match = re.search(r"obsura-icon-(\d+)\.png$", png.name)
+        if match:
+            sizes.append(int(match.group(1)))
+
+    if not sizes:
+        raise ValueError("Unable to determine icon sizes from asset filenames.")
+
+    return sorted(set(sizes))
+
+
+def create_windows_icon(repo_root: Path, build_dir: Path) -> Path:
+    pngs = icon_pngs(repo_root)
+    sizes = sorted_icon_sizes(pngs)
+    largest_png = asset_dir(repo_root) / f"obsura-icon-{sizes[-1]}.png"
+    icon_path = build_dir / "windows" / "obsuractl.ico"
+    icon_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with Image.open(largest_png) as image:
+        square_image = image.convert("RGBA")
+        square_sizes = [(size, size) for size in sizes]
+        square_image.save(icon_path, format="ICO", sizes=square_sizes)
+
+    return icon_path
+
+
+def windows_version_tuple(version: str) -> tuple[int, int, int, int]:
+    major, minor, patch = version.split(".")
+    return int(major), int(minor), int(patch), 0
+
+
+def create_windows_version_file(build_dir: Path, version_label: str) -> Path:
+    version = read_version()
+    version_tuple = windows_version_tuple(version)
+    version_file = build_dir / "windows" / "version_info.txt"
+    version_file.parent.mkdir(parents=True, exist_ok=True)
+    version_file.write_text(
+        "\n".join(
+            [
+                "# UTF-8",
+                "VSVersionInfo(",
+                "  ffi=FixedFileInfo(",
+                f"    filevers={version_tuple},",
+                f"    prodvers={version_tuple},",
+                "    mask=0x3F,",
+                "    flags=0x0,",
+                "    OS=0x40004,",
+                "    fileType=0x1,",
+                "    subtype=0x0,",
+                "    date=(0, 0)",
+                "  ),",
+                "  kids=[",
+                "    StringFileInfo([",
+                "      StringTable(",
+                "        '040904B0',",
+                "        [",
+                "          StringStruct('CompanyName', 'Obsura'),",
+                "          StringStruct('FileDescription', 'obsuractl operator CLI'),",
+                f"          StringStruct('FileVersion', '{version_label}'),",
+                "          StringStruct('InternalName', 'obsuractl'),",
+                "          StringStruct('OriginalFilename', 'obsuractl.exe'),",
+                "          StringStruct('ProductName', 'obsuractl'),",
+                f"          StringStruct('ProductVersion', '{version_label}')",
+                "        ]",
+                "      )",
+                "    ]),",
+                "    VarFileInfo([VarStruct('Translation', [1033, 1200])])",
+                "  ]",
+                ")",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return version_file
 
 
 def build_binary(version_label: str, target_os: str, target_arch: str, output_dir: Path) -> Path:
@@ -49,6 +147,12 @@ def build_binary(version_label: str, target_os: str, target_arch: str, output_di
         str(repo_root / "cli"),
         str(entrypoint),
     ]
+
+    if target_os == "windows":
+        icon_path = create_windows_icon(repo_root, build_dir)
+        version_file = create_windows_version_file(build_dir, version_label)
+        pyinstaller_command.extend(["--icon", str(icon_path), "--version-file", str(version_file)])
+
     subprocess.run(pyinstaller_command, check=True)
 
     binary_name = "obsuractl.exe" if target_os == "windows" else "obsuractl"
