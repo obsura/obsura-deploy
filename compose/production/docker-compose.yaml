@@ -1,0 +1,109 @@
+name: obsura-production
+
+services:
+  volume-init:
+    # Use the same image so the init step can discover the image's runtime UID/GID.
+    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      uid="$(id -u obsura 2>/dev/null || echo 1000)"
+      gid="$(id -g obsura 2>/dev/null || echo 1000)"
+      mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
+      chown -R "${uid}:${gid}" /var/lib/obsura
+      chmod -R u+rwX,go-rwx /var/lib/obsura
+    volumes:
+      - obsura-data:/var/lib/obsura
+    networks:
+      - backend
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../../env/postgres.env
+    environment:
+      PGDATA: ${POSTGRES_DATA_PATH:-/var/lib/postgresql/data/pgdata}
+    expose:
+      - "5432"
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /run/postgresql:size=16m,nosuid,nodev
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-5}
+    networks:
+      - backend
+
+  api:
+    # Prefer a published digest here, not a mutable tag.
+    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../../env/api.env
+    environment:
+      OBSURA_ENV: production
+      OBSURA_STORAGE_ROOT: /var/lib/obsura
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      volume-init:
+        condition: service_completed_successfully
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /run:size=16m,noexec,nosuid,nodev
+    volumes:
+      - obsura-data:/var/lib/obsura
+    ports:
+      - "${OBSURA_API_BIND_ADDRESS:-127.0.0.1}:${OBSURA_API_HOST_PORT:-8000}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
+        max-file: ${DOCKER_LOG_MAX_FILE:-5}
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  obsura-data:
+    name: ${OBSURA_STORAGE_VOLUME:-obsura-storage}
+  postgres-data:
+    name: ${OBSURA_POSTGRES_VOLUME:-obsura-postgres}

@@ -1,0 +1,16 @@
+# Operator-managed env files
+env/*.env
+!env/*.env.example
+
+# Local runtime artifacts
+backups/
+artifacts/
+*.log
+*.tmp
+*.bak
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
