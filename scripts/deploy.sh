@@ -17,7 +17,7 @@ POSTGRES_ENV="$ROOT_DIR/env/postgres.env"
 
 obsura_require_files "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV"
 
-OBSURA_API_IMAGE="$(obsura_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE || true)"
+OBSURA_API_IMAGE="$(obsura_stack_api_image "$COMPOSE_FILE" || true)"
 obsura_require_real_image_reference "$OBSURA_API_IMAGE"
 
 obsura_print_stack_context "$ENVIRONMENT" "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV" "$OBSURA_API_IMAGE"

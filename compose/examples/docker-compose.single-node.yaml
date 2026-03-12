@@ -1,8 +1,7 @@
-name: obsura-single-node
-
 services:
   volume-init:
     image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-single-node-volume-init
     restart: "no"
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
@@ -18,6 +17,7 @@ services:
 
   postgres:
     image: postgres:17-alpine
+    container_name: obsura-single-node-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: obsura
@@ -37,6 +37,7 @@ services:
   api:
     # Replace with a release tag for evaluation, or a published digest for production.
     image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-single-node-api
     restart: unless-stopped
     depends_on:
       postgres:

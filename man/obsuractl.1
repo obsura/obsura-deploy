@@ -51,18 +51,23 @@ Use
 for an environment-level override.
 .SH QUICK START
 .nf
-obsuractl init
-$EDITOR env/global.env
-$EDITOR env/postgres.env
-obsuractl doctor local
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
 obsuractl up local
+.fi
+.PP
+On interactive terminals,
+.B obsuractl init
+can offer the same local quickstart and ask for the image reference.
+.PP
+For template files only:
+.nf
+obsuractl init --template-only
 .fi
 .PP
 If you run the standalone binary from outside the repository:
 .nf
-obsuractl --repo-root /srv/obsura-deploy init
-obsuractl --repo-root /srv/obsura-deploy doctor production
-obsuractl --repo-root /srv/obsura-deploy up production
+obsuractl --repo-root /srv/obsura-deploy init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl --repo-root /srv/obsura-deploy up local
 .fi
 .SH COMMANDS
 .TP
@@ -70,6 +75,10 @@ obsuractl --repo-root /srv/obsura-deploy up production
 Create missing
 .B env/*.env
 files from the committed example templates.
+It can also prepare a local quickstart by writing
+.B compose/local/docker-compose.yaml
+and generating
+.BR POSTGRES_PASSWORD .
 .TP
 .B doctor
 Validate Docker, Docker Compose, env files, image references, and Compose wiring.
@@ -92,17 +101,15 @@ then print the running API image summary when a container exists.
 Show logs for the whole stack or selected services.
 .TP
 .B update
-Pull newer images and recreate the selected environment using the current image reference from
-.BR env/global.env .
+Pull newer images and recreate the selected environment using the current image reference from the selected compose file.
 The wrapped script waits for API health before returning success.
 .TP
 .B rollback
-Write a reviewed image tag or digest into
-.B env/global.env
+Write a reviewed image tag or digest into the selected compose file
 and recreate the selected environment.
 If the recreate step fails, the previous
-.B OBSURA_API_IMAGE
-value is restored.
+.B image reference
+is restored.
 .TP
 .B backup
 Run the documented backup workflow for PostgreSQL and persistent app data.
@@ -135,6 +142,8 @@ Shortcut for
 Disable color through the standard environment convention.
 .SH EXAMPLES
 .nf
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl up local
 obsuractl doctor local
 obsuractl up production
 obsuractl logs production api --follow
@@ -145,8 +154,7 @@ obsuractl restore production backups/production/20260311-210000 --yes
 .SH FILES
 .TP
 .B env/global.env
-Global operator-managed values, including
-.BR OBSURA_API_IMAGE .
+Global operator-managed values such as bind address, port, volume names, and backup root.
 .TP
 .B env/api.env
 Application runtime values.
@@ -155,10 +163,10 @@ Application runtime values.
 PostgreSQL runtime values.
 .TP
 .B compose/local/docker-compose.yaml
-Local stack definition.
+Local stack definition, including the local api image.
 .TP
 .B compose/production/docker-compose.yaml
-Production-minded stack definition.
+Production-minded stack definition, including the production api image.
 .TP
 .B docs/cli.md
 Extended markdown documentation.

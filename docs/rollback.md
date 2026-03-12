@@ -16,11 +16,11 @@ Script form:
 bash scripts/rollback.sh production ghcr.io/obsura/obsura-api@sha256:<previous-digest>
 ```
 
-The rollback scripts update `env/global.env`, recreate the stack, wait for API health, and restore the previous `OBSURA_API_IMAGE` value if the recreate step fails.
+The rollback scripts update the selected compose file, recreate the stack, wait for API health, and restore the previous image reference if the recreate step fails.
 
 Manual equivalent:
 
-1. Set `OBSURA_API_IMAGE` in `env/global.env` back to the previously approved image.
+1. Set the `api` and `volume-init` image lines in the selected compose file back to the previously approved image.
 2. Run:
 
 ```bash

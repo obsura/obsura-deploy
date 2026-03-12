@@ -4,6 +4,8 @@ The production stack is a single-host Docker Compose deployment intended to run 
 
 `obsuractl` is an operator convenience layer for this model, not a separate platform. Direct Compose and helper-script workflows remain supported.
 
+The stack uses fixed container names such as `obsura-production-api` so operators can inspect containers quickly. Do not run duplicate copies of the production stack on the same host with the same compose file.
+
 ## Production Assumptions
 
 - `obsura-api` binds to localhost only by default
@@ -24,7 +26,7 @@ Create:
 
 Required production edits:
 
-- set `OBSURA_API_IMAGE` to the exact image you intend to deploy
+- set the `api` and `volume-init` image lines in `compose/production/docker-compose.yaml` to the exact image you intend to deploy
 - replace `POSTGRES_PASSWORD`
 - keep `OBSURA_API_BIND_ADDRESS=127.0.0.1` unless you deliberately want host-wide exposure
 
@@ -33,13 +35,13 @@ Required production edits:
 Preferred:
 
 ```text
-OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api@sha256:<published-digest>
+image: ghcr.io/obsura/obsura-api@sha256:<published-digest>
 ```
 
 Acceptable for evaluation but weaker:
 
 ```text
-OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api:<release-tag>
+image: ghcr.io/obsura/obsura-api:<release-tag>
 ```
 
 Do not do blind production updates against mutable tags if you care about reproducibility.

@@ -19,11 +19,11 @@ $PostgresEnv = Join-Path $RootDir "env/postgres.env"
 
 Assert-ObsuraFiles -Paths @($ComposeFile, $GlobalEnv, $ApiEnv, $PostgresEnv)
 
-$Vars = Get-ObsuraEnvMap -Paths @($GlobalEnv)
-Assert-ObsuraRealImageReference -Vars $Vars
+$ApiImage = Get-ObsuraStackApiImage -ComposeFile $ComposeFile
+Assert-ObsuraRealImageReference -ImageRef $ApiImage
 
 $ComposeArgs = Get-ObsuraComposeArgs -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv
-Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $Vars["OBSURA_API_IMAGE"]
+Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $ApiImage
 
 Write-Host "Validating compose configuration for $Environment..."
 Invoke-ObsuraNative -FilePath "docker" -ArgumentList ($ComposeArgs + @("config")) -Context "docker compose config for $Environment" | Out-Null

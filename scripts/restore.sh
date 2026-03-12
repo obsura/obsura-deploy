@@ -33,7 +33,7 @@ POSTGRES_USER="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_USER || true)"
 POSTGRES_DB="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_DB || true)"
 POSTGRES_PASSWORD="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_PASSWORD || true)"
 OBSURA_STORAGE_VOLUME="$(obsura_env_value "$GLOBAL_ENV" OBSURA_STORAGE_VOLUME || true)"
-OBSURA_API_IMAGE="$(obsura_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE || true)"
+OBSURA_API_IMAGE="$(obsura_stack_api_image "$COMPOSE_FILE" || true)"
 
 if [[ -z "$POSTGRES_USER" || -z "$POSTGRES_DB" || -z "$POSTGRES_PASSWORD" ]]; then
   echo "POSTGRES_USER, POSTGRES_DB, and POSTGRES_PASSWORD must be set in env/postgres.env." >&2

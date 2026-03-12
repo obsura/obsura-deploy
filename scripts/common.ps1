@@ -92,10 +92,10 @@ function Get-ObsuraEnvMap {
 }
 
 function Assert-ObsuraRealImageReference {
-    param([hashtable]$Vars)
+    param([string]$ImageRef)
 
-    if (-not $Vars.ContainsKey("OBSURA_API_IMAGE") -or [string]::IsNullOrWhiteSpace($Vars["OBSURA_API_IMAGE"]) -or $Vars["OBSURA_API_IMAGE"] -match "replace-with-|change-me|placeholder|example") {
-        throw "Set OBSURA_API_IMAGE in env/global.env to a real published tag or digest before continuing."
+    if (-not $ImageRef -or $ImageRef -match "replace-with-|change-me|placeholder|example") {
+        throw "Set the api image in the compose file to a real published tag or digest before continuing."
     }
 }
 
@@ -126,6 +126,79 @@ function Show-ObsuraStackContext {
     if ($ImageRef) {
         Write-Host "API image: $ImageRef"
     }
+}
+
+function Get-ObsuraComposeServiceImage {
+    param(
+        [string]$ComposeFile,
+        [string]$Service
+    )
+
+    $lines = Get-Content $ComposeFile
+    $inTarget = $false
+    foreach ($line in $lines) {
+        if ($line -match "^  ([A-Za-z0-9_-]+):$") {
+            $inTarget = ($Matches[1] -eq $Service)
+            continue
+        }
+
+        if ($inTarget -and $line -match "^    image:\s*(.+)$") {
+            return $Matches[1].Trim()
+        }
+    }
+
+    return $null
+}
+
+function Set-ObsuraComposeServiceImage {
+    param(
+        [string]$ComposeFile,
+        [string]$Service,
+        [string]$ImageRef
+    )
+
+    $lines = Get-Content $ComposeFile
+    $updated = $false
+    $inTarget = $false
+    $output = New-Object System.Collections.Generic.List[string]
+
+    foreach ($line in $lines) {
+        if ($line -match "^  ([A-Za-z0-9_-]+):$") {
+            $inTarget = ($Matches[1] -eq $Service)
+            $output.Add($line)
+            continue
+        }
+
+        if ($inTarget -and $line -match "^    image:\s*(.+)$") {
+            $output.Add("    image: $ImageRef")
+            $updated = $true
+            continue
+        }
+
+        $output.Add($line)
+    }
+
+    if (-not $updated) {
+        throw "Failed to update image for service '$Service' in $ComposeFile"
+    }
+
+    Set-Content -Path $ComposeFile -Value $output
+}
+
+function Get-ObsuraStackApiImage {
+    param([string]$ComposeFile)
+
+    return Get-ObsuraComposeServiceImage -ComposeFile $ComposeFile -Service "api"
+}
+
+function Set-ObsuraStackApiImage {
+    param(
+        [string]$ComposeFile,
+        [string]$ImageRef
+    )
+
+    Set-ObsuraComposeServiceImage -ComposeFile $ComposeFile -Service "volume-init" -ImageRef $ImageRef
+    Set-ObsuraComposeServiceImage -ComposeFile $ComposeFile -Service "api" -ImageRef $ImageRef
 }
 
 function Get-ObsuraComposeServiceContainerId {
@@ -222,32 +295,6 @@ function Ensure-ObsuraDockerVolume {
             throw "Failed to create Docker volume: $VolumeName"
         }
     }
-}
-
-function Set-ObsuraEnvValue {
-    param(
-        [string]$Path,
-        [string]$Key,
-        [string]$Value
-    )
-
-    $pattern = "^{0}=" -f [regex]::Escape($Key)
-    $updated = $false
-    $lines = foreach ($Line in Get-Content $Path) {
-        if ($Line -match $pattern) {
-            $updated = $true
-            "$Key=$Value"
-        }
-        else {
-            $Line
-        }
-    }
-
-    if (-not $updated) {
-        $lines += "$Key=$Value"
-    }
-
-    Set-Content -Path $Path -Value $lines
 }
 
 function Get-ObsuraComposeArgs {

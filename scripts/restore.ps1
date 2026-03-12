@@ -33,14 +33,13 @@ $PostgresUser = $Vars["POSTGRES_USER"]
 $PostgresDb = $Vars["POSTGRES_DB"]
 $PostgresPassword = $Vars["POSTGRES_PASSWORD"]
 $StorageVolume = if ($Vars.ContainsKey("OBSURA_STORAGE_VOLUME")) { $Vars["OBSURA_STORAGE_VOLUME"] } else { "obsura-storage" }
-$ApiImage = if ($Vars.ContainsKey("OBSURA_API_IMAGE")) { $Vars["OBSURA_API_IMAGE"] } else { $null }
+$ApiImage = Get-ObsuraStackApiImage -ComposeFile $ComposeFile
 
 if (-not $PostgresUser -or -not $PostgresDb -or -not $PostgresPassword) {
     throw "POSTGRES_USER, POSTGRES_DB, and POSTGRES_PASSWORD must be set in env/postgres.env."
 }
 
-$GlobalOnlyVars = Get-ObsuraEnvMap -Paths @($GlobalEnv)
-Assert-ObsuraRealImageReference -Vars $GlobalOnlyVars
+Assert-ObsuraRealImageReference -ImageRef $ApiImage
 
 $ComposeArgs = Get-ObsuraComposeArgs -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv
 Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $ApiImage

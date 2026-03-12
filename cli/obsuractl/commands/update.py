@@ -13,7 +13,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "update",
         summary="Pull newer images and recreate the selected environment.",
         purpose=(
-            "Run the documented update workflow using the current OBSURA_API_IMAGE from env/global.env.",
+            "Run the documented update workflow using the current api image from the selected compose file.",
             "This command does not invent image state. It uses the image reference already written in the repo checkout.",
         ),
         wraps=("scripts/update.sh <environment>", "scripts/update.ps1 -Environment <environment>"),
@@ -22,7 +22,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             "obsuractl update production",
         ),
         notes=(
-            "Set OBSURA_API_IMAGE to a reviewed tag or digest before updating.",
+            "Set the api image in the selected compose file to a reviewed tag or digest before updating.",
             "For production, prefer an immutable digest over a mutable tag.",
             "The wrapped update script waits for API health and prints the running image summary.",
         ),

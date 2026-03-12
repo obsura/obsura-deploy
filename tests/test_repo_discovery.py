@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from obsuractl import config
-from obsuractl.helpers import suggested_init_command
+from obsuractl.helpers import suggested_init_command, suggested_quickstart_command
 
 
 def make_fake_repo(root: Path) -> Path:
@@ -99,3 +99,22 @@ def test_suggested_init_command_is_short_inside_checkout(monkeypatch: pytest.Mon
     stack = config.resolve_stack("local")
 
     assert suggested_init_command(stack) == "obsuractl init"
+
+
+def test_suggested_quickstart_command_uses_repo_root_override_when_outside_checkout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo = make_fake_repo(tmp_path / "obsura-deploy")
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+
+    config.set_runtime_repo_root(repo)
+    monkeypatch.chdir(outside_dir)
+    stack = config.resolve_stack("local")
+
+    assert (
+        suggested_quickstart_command(stack)
+        == f"obsuractl --repo-root {repo} init --quickstart-local --image ghcr.io/obsura/obsura-api:<tag-or-digest>"
+    )
+
+    config.set_runtime_repo_root(None)

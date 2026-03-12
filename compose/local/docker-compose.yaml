@@ -1,9 +1,7 @@
-name: obsura-local
-
 services:
   volume-init:
-    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
-    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-volume-init
+    image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-local-volume-init
     restart: "no"
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
@@ -16,12 +14,10 @@ services:
       chmod -R u+rwX,go-rwx /var/lib/obsura
     volumes:
       - obsura-data:/var/lib/obsura
-    networks:
-      - backend
 
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
-    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-postgres
+    image: postgres:17-alpine
+    container_name: obsura-local-postgres
     restart: unless-stopped
     init: true
     env_file:
@@ -49,12 +45,10 @@ services:
       options:
         max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
         max-file: ${DOCKER_LOG_MAX_FILE:-3}
-    networks:
-      - backend
 
   api:
-    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
-    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-api
+    image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-local-api
     restart: unless-stopped
     init: true
     env_file:
@@ -98,12 +92,6 @@ services:
       options:
         max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
         max-file: ${DOCKER_LOG_MAX_FILE:-3}
-    networks:
-      - backend
-
-networks:
-  backend:
-    driver: bridge
 
 volumes:
   obsura-data:

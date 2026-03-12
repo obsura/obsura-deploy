@@ -69,7 +69,7 @@ obsura_env_value() {
 obsura_require_real_image_reference() {
   local image_ref="$1"
   if [[ -z "$image_ref" || "$image_ref" == *"replace-with-"* || "$image_ref" == *"change-me"* || "$image_ref" == *"placeholder"* || "$image_ref" == *"example"* ]]; then
-    echo "Set OBSURA_API_IMAGE in env/global.env to a real published tag or digest before continuing." >&2
+    echo "Set the api image in the compose file to a real published tag or digest before continuing." >&2
     exit 1
   fi
 }
@@ -99,6 +99,69 @@ obsura_print_stack_context() {
   if [[ -n "$image_ref" ]]; then
     echo "API image: $image_ref"
   fi
+}
+
+obsura_compose_service_image() {
+  local compose_file="$1"
+  local service="$2"
+
+  awk -v service="$service" '
+    $0 ~ ("^  " service ":$") { in_target = 1; next }
+    in_target && $0 ~ "^  [A-Za-z0-9_-]+:$" { exit }
+    in_target && $0 ~ "^    image:[[:space:]]*" {
+      sub("^    image:[[:space:]]*", "", $0)
+      print $0
+      exit
+    }
+  ' "$compose_file"
+}
+
+obsura_set_compose_service_image() {
+  local compose_file="$1"
+  local service="$2"
+  local image_ref="$3"
+  local temp_file
+
+  temp_file="${compose_file}.tmp"
+  awk -v service="$service" -v image_ref="$image_ref" '
+    $0 ~ ("^  " service ":$") {
+      in_target = 1
+      print
+      next
+    }
+    in_target && $0 ~ "^  [A-Za-z0-9_-]+:$" {
+      in_target = 0
+    }
+    in_target && $0 ~ "^    image:[[:space:]]*" {
+      print "    image: " image_ref
+      updated = 1
+      next
+    }
+    { print }
+    END {
+      if (!updated) {
+        exit 2
+      }
+    }
+  ' "$compose_file" > "$temp_file" || {
+    rm -f "$temp_file"
+    echo "Failed to update image for service '$service' in $compose_file" >&2
+    exit 1
+  }
+
+  mv "$temp_file" "$compose_file"
+}
+
+obsura_stack_api_image() {
+  local compose_file="$1"
+  obsura_compose_service_image "$compose_file" api
+}
+
+obsura_set_stack_api_image() {
+  local compose_file="$1"
+  local image_ref="$2"
+  obsura_set_compose_service_image "$compose_file" volume-init "$image_ref"
+  obsura_set_compose_service_image "$compose_file" api "$image_ref"
 }
 
 obsura_compose_service_container_id() {
@@ -183,23 +246,6 @@ obsura_ensure_docker_volume() {
     echo "Creating Docker volume: $volume_name"
     docker volume create "$volume_name" > /dev/null
   fi
-}
-
-obsura_set_env_value() {
-  local file="$1"
-  local key="$2"
-  local value="$3"
-  local temp_file
-
-  temp_file="${file}.tmp"
-  awk -v key="$key" -v value="$value" '
-    BEGIN { updated = 0 }
-    $0 ~ ("^" key "=") { print key "=" value; updated = 1; next }
-    { print }
-    END { if (!updated) print key "=" value }
-  ' "$file" > "$temp_file"
-
-  mv "$temp_file" "$file"
 }
 
 obsura_compose() {

@@ -5,11 +5,15 @@ Configuration is intentionally split by concern.
 ## Env File Layout
 
 - `env/global.env`
-  Shared Compose interpolation values such as image references, bind address, published port, volume names, and backup root.
+  Shared Compose interpolation values such as bind address, published port, volume names, and backup root.
 - `env/api.env`
   Non-secret application runtime settings passed to the `obsura-api` container.
 - `env/postgres.env`
   PostgreSQL database name, user, password, and init arguments.
+- `compose/local/docker-compose.yaml`
+  Local stack definition, including the local api image reference.
+- `compose/production/docker-compose.yaml`
+  Production stack definition, including the production api image reference.
 
 ## Interpolation Expectations
 
@@ -29,6 +33,7 @@ If you pass only one env file, Compose interpolation can fail even though the co
 ## App Settings vs Database Settings
 
 Application settings belong in `env/api.env`. Database settings belong in `env/postgres.env`. Shared deployment and Compose settings belong in `env/global.env`.
+Image references belong directly in the compose files so operators can inspect a stack file and immediately see what will run.
 
 Current important wiring:
 

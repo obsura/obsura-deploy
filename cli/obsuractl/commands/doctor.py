@@ -23,8 +23,9 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             "obsuractl --repo-root /srv/obsura-deploy doctor production",
         ),
         notes=(
-            "Production warns when OBSURA_API_IMAGE uses a mutable tag instead of an immutable digest.",
-            "If env files are missing, run obsuractl init first.",
+            "Production warns when the compose file uses a mutable tag instead of an immutable digest.",
+            "If local env files are missing, the fastest fix is obsuractl init --quickstart-local --image <published-tag-or-digest>.",
+            "Manual setup remains available through obsuractl init.",
         ),
     )
     parser.add_argument(

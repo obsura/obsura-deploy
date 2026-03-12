@@ -32,13 +32,43 @@ Explicit override options:
 If env files are missing after discovery, run:
 
 ```bash
-obsuractl init
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+```
+
+Template-only fallback:
+
+```bash
+obsuractl init --template-only
 ```
 
 If you are running the standalone binary from outside the checkout, use:
 
 ```bash
-obsuractl --repo-root /path/to/obsura-deploy init
+obsuractl --repo-root /path/to/obsura-deploy init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+```
+
+## Fastest Local Path
+
+The shortest supported local flow is now:
+
+```bash
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl up local
+```
+
+That quickstart mode:
+
+- creates `env/global.env`, `env/api.env`, and `env/postgres.env`
+- writes the local api image into `compose/local/docker-compose.yaml`
+- generates a strong `POSTGRES_PASSWORD`
+- keeps the default localhost-only API binding
+
+On interactive terminals, plain `obsuractl init` can offer the same quickstart and ask you for the image reference instead of requiring `--image` on the command line.
+
+If you want template files only, use:
+
+```bash
+obsuractl init --template-only
 ```
 
 ## Built-In Help
@@ -161,7 +191,7 @@ Binary branding assets:
 ## What Each Command Does
 
 - `init`
-  Copies missing env files from the committed examples. It does not invent environment state outside `env/`.
+  Copies missing env files from the committed examples. It can also prepare a local quickstart by writing the image into `compose/local/docker-compose.yaml` and generating `POSTGRES_PASSWORD`. It does not create hidden state outside the checked-in files.
 - `doctor`
   Validates Docker, Docker Compose, env files, placeholder values, port assumptions, and `docker compose config`.
 - `up`
@@ -175,9 +205,9 @@ Binary branding assets:
 - `logs`
   Runs `docker compose logs` against the selected environment and optional services.
 - `update`
-  Runs the update script using the current `OBSURA_API_IMAGE` in `env/global.env`. The wrapped script waits for API health before reporting success.
+  Runs the update script using the current api image in the selected compose file. The wrapped script waits for API health before reporting success.
 - `rollback`
-  Writes a previously approved image reference into `env/global.env`, then runs the update script. If the recreate step fails, the script restores the previous `OBSURA_API_IMAGE` value.
+  Writes a previously approved image reference into the selected compose file, then runs the update script. If the recreate step fails, the script restores the previous image value.
 - `backup`
   Runs the backup script and reports the output location. Backup fails if the configured storage volume does not exist yet.
 - `restore`
@@ -202,7 +232,7 @@ Every CLI operation has a manual path.
 
 The CLI exists because operators should not have to reconstruct those commands from memory every time. It does not replace them.
 
-Underneath that script-level rollback path, the deployment model is still the same: set `OBSURA_API_IMAGE` to the desired previous image and recreate the stack.
+Underneath that script-level rollback path, the deployment model is still the same: set the compose-file image to the desired previous image and recreate the stack.
 
 ## Examples
 
@@ -210,10 +240,12 @@ Underneath that script-level rollback path, the deployment model is still the sa
 obsuractl --help
 obsuractl up --help
 obsuractl init
+obsuractl init --template-only
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl up local
 obsuractl doctor local
 obsuractl --repo-root /srv/obsura-deploy doctor production
 obsuractl --repo-root /srv/obsura-deploy init
-obsuractl up local
 obsuractl logs local api --follow
 obsuractl doctor production
 obsuractl update production
@@ -225,12 +257,13 @@ obsuractl restore production backups/production/20260311-210000 --yes
 ## Operator Safety Notes
 
 - `restore` is destructive and requires `--yes`.
-- `rollback` changes `OBSURA_API_IMAGE` in `env/global.env` and then recreates services.
-- `update` and `rollback` use whatever image reference is written in `env/global.env`.
+- `rollback` changes the selected compose file and then recreates services.
+- `update` and `rollback` use whatever image reference is written in the selected compose file.
 - `doctor` warns when production is using a tag instead of a digest.
 - `backup` and `restore` print the backup path and storage volume they touch.
 - `doctor`, `up`, and the other stack commands act on the discovered repository checkout, so verify the reported repository root when using a standalone binary.
-- If `up` or `status` reports missing `env/*.env` files, the usual fix is `obsuractl init`, followed by editing `env/global.env` and `env/postgres.env`.
+- If `up` or `status` reports missing `env/*.env` files for local usage, the fastest fix is `obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>`.
+- If you want template files without the quickstart prompt, use `obsuractl init --template-only`.
 - If you need plain output for logs or automation, use `--no-color` or `NO_COLOR=1`.
 
 ## Out Of Scope

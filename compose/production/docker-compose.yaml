@@ -1,10 +1,8 @@
-name: obsura-production
-
 services:
   volume-init:
-    # Keep this aligned with the published image contract. The init step uses the
-    # image itself so it can discover the runtime UID/GID before the main service starts.
-    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    # Keep this image aligned with the api service below.
+    image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-production-volume-init
     restart: "no"
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
@@ -17,11 +15,10 @@ services:
       chmod -R u+rwX,go-rwx /var/lib/obsura
     volumes:
       - obsura-data:/var/lib/obsura
-    networks:
-      - backend
 
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    image: postgres:17-alpine
+    container_name: obsura-production-postgres
     restart: unless-stopped
     init: true
     env_file:
@@ -48,13 +45,11 @@ services:
       options:
         max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
         max-file: ${DOCKER_LOG_MAX_FILE:-5}
-    networks:
-      - backend
 
   api:
-    # Prefer a published digest here:
-    # ghcr.io/obsura/obsura-api@sha256:<published-digest>
-    image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    # Prefer a published digest here once you have a validated release.
+    image: ghcr.io/obsura/obsura-api:replace-with-release-tag
+    container_name: obsura-production-api
     restart: unless-stopped
     init: true
     env_file:
@@ -99,12 +94,6 @@ services:
       options:
         max-size: ${DOCKER_LOG_MAX_SIZE:-10m}
         max-file: ${DOCKER_LOG_MAX_FILE:-5}
-    networks:
-      - backend
-
-networks:
-  backend:
-    driver: bridge
 
 volumes:
   obsura-data:

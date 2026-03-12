@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shlex
 import shutil
 import socket
@@ -73,6 +74,64 @@ def parse_env_file(path: Path) -> dict[str, str]:
             value = value[1:-1]
         values[key.strip()] = value
     return values
+
+
+SERVICE_HEADER_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
+IMAGE_LINE_RE = re.compile(r"^    image:\s*(\S.*?)\s*$")
+
+
+def compose_service_image(compose_file: Path, service: str) -> str | None:
+    in_target = False
+
+    for raw_line in compose_file.read_text(encoding="utf-8").splitlines():
+        service_match = SERVICE_HEADER_RE.match(raw_line)
+        if service_match:
+            in_target = service_match.group(1) == service
+            continue
+
+        if not in_target:
+            continue
+
+        image_match = IMAGE_LINE_RE.match(raw_line)
+        if image_match:
+            return image_match.group(1).strip()
+
+    return None
+
+
+def set_compose_service_image(compose_file: Path, service: str, image_ref: str) -> None:
+    lines = compose_file.read_text(encoding="utf-8").splitlines()
+    in_target = False
+    updated = False
+    output: list[str] = []
+
+    for line in lines:
+        service_match = SERVICE_HEADER_RE.match(line)
+        if service_match:
+            in_target = service_match.group(1) == service
+            output.append(line)
+            continue
+
+        if in_target and IMAGE_LINE_RE.match(line):
+            output.append(f"    image: {image_ref}")
+            updated = True
+            continue
+
+        output.append(line)
+
+    if not updated:
+        raise UserError(f"Compose service '{service}' is missing an image line in {compose_file}")
+
+    compose_file.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+
+def stack_configured_api_image(stack: config.StackPaths) -> str | None:
+    return compose_service_image(stack.compose_file, "api")
+
+
+def set_stack_api_image(stack: config.StackPaths, image_ref: str) -> None:
+    set_compose_service_image(stack.compose_file, "volume-init", image_ref)
+    set_compose_service_image(stack.compose_file, "api", image_ref)
 
 
 def merge_env_files(paths: Iterable[Path]) -> dict[str, str]:
@@ -179,11 +238,7 @@ def collect_stack_access_result(environment: str) -> DoctorResult:
     if missing_env_files:
         for missing in missing_env_files:
             result.errors.append(f"Missing env file: {missing}")
-        result.warnings.append(
-            "Run "
-            f"`{suggested_init_command(stack)}` "
-            "to create env files from the examples."
-        )
+        result.warnings.append(missing_env_guidance(stack))
         return result
 
     if docker_path and stack.compose_file.exists():
@@ -204,9 +259,11 @@ def collect_doctor_result(environment: str) -> DoctorResult:
         return result
 
     merged = merge_env_files(stack.env_files)
+    local_quickstart_hint_needed = False
+    api_image = stack_configured_api_image(stack) or ""
+    volume_init_image = compose_service_image(stack.compose_file, "volume-init") or ""
 
     required_vars = (
-        "OBSURA_API_IMAGE",
         "OBSURA_API_BIND_ADDRESS",
         "OBSURA_API_HOST_PORT",
         "POSTGRES_DB",
@@ -217,16 +274,28 @@ def collect_doctor_result(environment: str) -> DoctorResult:
     for key in required_vars:
         if not merged.get(key):
             result.errors.append(f"Required variable is missing or empty: {key}")
+            if environment == "local" and key == "POSTGRES_PASSWORD":
+                local_quickstart_hint_needed = True
 
-    api_image = merged.get("OBSURA_API_IMAGE", "")
-    if api_image and placeholder_like(api_image):
-        result.errors.append("OBSURA_API_IMAGE still contains a placeholder value.")
-    elif api_image and environment == "production" and "@sha256:" not in api_image:
-        result.warnings.append("Production is using a tag instead of an immutable digest for OBSURA_API_IMAGE.")
+    if not api_image:
+        result.errors.append(f"API image is missing from {stack.compose_file}.")
+    elif placeholder_like(api_image):
+        result.errors.append(f"API image in {stack.compose_file} still contains a placeholder value.")
+        if environment == "local":
+            local_quickstart_hint_needed = True
+    elif environment == "production" and "@sha256:" not in api_image:
+        result.warnings.append("Production is using a tag instead of an immutable digest in the compose file.")
+
+    if not volume_init_image:
+        result.errors.append(f"volume-init image is missing from {stack.compose_file}.")
+    elif volume_init_image != api_image:
+        result.errors.append("api and volume-init must use the same image reference in the compose file.")
 
     postgres_password = merged.get("POSTGRES_PASSWORD", "")
     if postgres_password and placeholder_like(postgres_password):
         result.errors.append("POSTGRES_PASSWORD still contains a placeholder value.")
+        if environment == "local":
+            local_quickstart_hint_needed = True
     elif postgres_password and len(postgres_password) < 16:
         result.warnings.append("POSTGRES_PASSWORD is shorter than 16 characters.")
 
@@ -240,6 +309,12 @@ def collect_doctor_result(environment: str) -> DoctorResult:
             result.infos.append(message)
         else:
             result.warnings.append(message)
+
+    if environment == "local" and local_quickstart_hint_needed:
+        result.warnings.append(
+            "Fastest local fix: "
+            f"`{suggested_quickstart_command(stack)}`."
+        )
 
     return result
 
@@ -263,7 +338,7 @@ def print_stack_context(
     target_image: str | None = None,
 ) -> None:
     values = stack_env_values(stack)
-    current_image = values.get("OBSURA_API_IMAGE")
+    current_image = stack_configured_api_image(stack)
     bind_address = values.get("OBSURA_API_BIND_ADDRESS")
     host_port = values.get("OBSURA_API_HOST_PORT")
 
@@ -362,10 +437,7 @@ def ensure_stack_ready(environment: str) -> config.StackPaths:
     if not result.ok:
         missing_env_files = [path for path in stack.env_files if not path.exists()]
         if missing_env_files:
-            raise UserError(
-                f"missing env files for {environment}; run `{suggested_init_command(stack)}` and then edit "
-                f"`{stack.global_env}` and `{stack.postgres_env}`"
-            )
+            raise UserError(f"missing env files for {environment}; {missing_env_guidance(stack)}")
         raise UserError(f"doctor checks failed for {environment}")
     return stack
 
@@ -377,15 +449,41 @@ def ensure_stack_access(environment: str) -> config.StackPaths:
     if not result.ok:
         missing_env_files = [path for path in stack.env_files if not path.exists()]
         if missing_env_files:
-            raise UserError(
-                f"missing env files for {environment}; run `{suggested_init_command(stack)}` before retrying"
-            )
+            raise UserError(f"missing env files for {environment}; {missing_env_guidance(stack)}")
         raise UserError(f"stack access checks failed for {environment}")
     return stack
 
 
 def suggested_init_command(stack: config.StackPaths) -> str:
+    command = "obsuractl init"
+    if current_dir_is_inside_repo(stack):
+        return command
+    return f"obsuractl --repo-root {stack.repo_root} init"
+
+
+def suggested_quickstart_command(stack: config.StackPaths) -> str:
+    base = "obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<tag-or-digest>"
+    if current_dir_is_inside_repo(stack):
+        return base
+    return (
+        "obsuractl --repo-root "
+        f"{stack.repo_root} init --quickstart-local --image "
+        "ghcr.io/obsura/obsura-api:<tag-or-digest>"
+    )
+
+
+def missing_env_guidance(stack: config.StackPaths) -> str:
+    if stack.environment == "local":
+        return (
+            "for the fastest local start, run "
+            f"`{suggested_quickstart_command(stack)}`. "
+            f"For manual setup, run `{suggested_init_command(stack)}`."
+        )
+    return f"run `{suggested_init_command(stack)}` to create env files from the examples"
+
+
+def current_dir_is_inside_repo(stack: config.StackPaths) -> bool:
     current_dir = Path.cwd().resolve()
     if current_dir == stack.repo_root or stack.repo_root in current_dir.parents:
-        return "obsuractl init"
-    return f"obsuractl --repo-root {stack.repo_root} init"
+        return True
+    return False

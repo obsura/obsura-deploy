@@ -16,16 +16,19 @@ def build_parser() -> argparse.ArgumentParser:
         description="Thin operator CLI for an obsura-deploy checkout.",
         epilog=render_help_sections(
             (
-                "Quick Start",
+                "Fastest Local Start",
                 (
-                    command_example("obsuractl init"),
-                    command_example("obsuractl doctor local"),
+                    command_example(
+                        "obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<tag-or-digest>"
+                    ),
                     command_example("obsuractl up local"),
+                    "Interactive terminals can also run `obsuractl init` and accept the local quickstart prompt.",
                 ),
             ),
             (
                 "Common Production Flow",
                 (
+                    command_example("obsuractl init"),
                     command_example("obsuractl doctor production"),
                     command_example("obsuractl up production"),
                     command_example("obsuractl logs production api --follow"),

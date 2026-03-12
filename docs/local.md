@@ -6,24 +6,38 @@ The local stack uses released container images. That keeps testing and operator 
 
 If you are using a standalone `obsuractl` binary, run it from inside the `obsura-deploy` checkout or pass `--repo-root /path/to/obsura-deploy`.
 
+The local stack uses fixed container names such as `obsura-local-api`. That makes `docker ps` and log inspection simpler, but it also means you should not run duplicate copies of the local stack on the same host.
+
 ## Prerequisites
 
 - Docker Engine
 - Docker Compose v2 plugin
 - access to pull `ghcr.io/obsura/obsura-api`
-- copied env files:
-  - `env/global.env`
-  - `env/api.env`
-  - `env/postgres.env`
+- either:
+  - `obsuractl` available for the quickstart path
+  - or a plan to copy `env/*.env.example` into `env/*.env` manually
 
 ## Environment Setup
 
-Copy the example env files first:
-
-Recommended with `obsuractl`:
+Fastest local bootstrap:
 
 ```bash
-obsuractl init
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+```
+
+That command:
+
+- creates the local `env/*.env` files
+- writes the local api image into `compose/local/docker-compose.yaml`
+- generates a strong `POSTGRES_PASSWORD`
+- keeps the default localhost-only API binding
+
+If you prefer a guided prompt, run plain `obsuractl init` from an interactive terminal and accept the local quickstart prompt.
+
+Template-only bootstrap with `obsuractl`:
+
+```bash
+obsuractl init --template-only
 ```
 
 Manual equivalent:
@@ -36,7 +50,7 @@ cp env/postgres.env.example env/postgres.env
 
 Set at minimum:
 
-- `OBSURA_API_IMAGE` in `env/global.env`
+- the `api` and `volume-init` image lines in `compose/local/docker-compose.yaml`
 - `POSTGRES_PASSWORD` in `env/postgres.env`
 
 Keep the default bind address unless you have a specific reason not to:
@@ -50,11 +64,16 @@ OBSURA_API_BIND_ADDRESS=127.0.0.1
 Recommended:
 
 ```bash
-obsuractl doctor local
 obsuractl up local
 ```
 
 `obsuractl up local` waits for the API container healthcheck before returning success.
+
+Optional standalone preflight:
+
+```bash
+obsuractl doctor local
+```
 
 Manual helper scripts:
 
@@ -107,8 +126,8 @@ docker compose \
 ## Common Local Issues
 
 - Port conflict on `127.0.0.1:8000`: change `OBSURA_API_HOST_PORT` or stop the other process.
-- Missing `env/*.env` files: run `obsuractl init` from the checkout, then edit `env/global.env` and `env/postgres.env`.
-- Placeholder image reference: replace `OBSURA_API_IMAGE` with a real published tag.
+- Missing `env/*.env` files: run `obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>` for the fastest path, or run `obsuractl init` for template-only setup.
+- Placeholder image reference: replace the local compose-file image with a real published tag.
 - Placeholder password: replace `POSTGRES_PASSWORD` before starting.
 - Storage permission failure: inspect `volume-init` logs and confirm the published image still exposes the expected runtime user.
 - Compose interpolation failure: ensure all three env files were passed to `docker compose`.

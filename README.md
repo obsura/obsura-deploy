@@ -43,6 +43,22 @@ The structure is designed so `obsura-web` can be added later without changing th
 
 ## Quick Start
 
+Fastest local start once `obsuractl` is available:
+
+```bash
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl up local
+```
+
+That bootstrap path:
+
+- creates `env/global.env`, `env/api.env`, and `env/postgres.env`
+- writes the local api image into `compose/local/docker-compose.yaml`
+- generates a strong `POSTGRES_PASSWORD`
+- keeps the API bound to `127.0.0.1` by default
+
+If you prefer a guided first run on an interactive terminal, plain `obsuractl init` now offers the same local quickstart.
+
 1. Optional but recommended: install the operator CLI, or download a standalone binary from GitHub Releases.
 
 ```bash
@@ -52,18 +68,31 @@ python -m pip install -e .
 If you are using a downloaded `obsuractl` binary instead of an editable install, run it from inside the `obsura-deploy` checkout or pass the checkout explicitly:
 
 ```bash
-obsuractl --repo-root /path/to/obsura-deploy doctor local
+obsuractl --repo-root /path/to/obsura-deploy init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl --repo-root /path/to/obsura-deploy up local
 ```
 
-2. Create local env files from the templates.
+2. Choose the bootstrap style.
 
-Recommended with `obsuractl`:
+Plug-and-play local bootstrap:
+
+```bash
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+```
+
+Guided interactive bootstrap:
 
 ```bash
 obsuractl init
 ```
 
-Manual equivalent:
+Template-only bootstrap with `obsuractl`:
+
+```bash
+obsuractl init --template-only
+```
+
+Manual bootstrap:
 
 ```bash
 cp env/global.env.example env/global.env
@@ -77,22 +106,24 @@ Copy-Item env/api.env.example env/api.env
 Copy-Item env/postgres.env.example env/postgres.env
 ```
 
-3. Edit `env/global.env` and `env/postgres.env`.
-
-- Set `OBSURA_API_IMAGE` to a real published image reference.
-- Replace `POSTGRES_PASSWORD` with a strong random value.
-- Leave `OBSURA_API_BIND_ADDRESS=127.0.0.1` unless you have a deliberate reason to expose the API differently.
-
-4. Validate the stack.
-
-```bash
-obsuractl doctor local
-```
-
-5. Start the local stack.
+3. If you used the quickstart path, start the stack.
 
 ```bash
 obsuractl up local
+```
+
+`obsuractl up local` already validates the stack before it starts anything.
+
+4. If you chose template-only or manual bootstrap, edit `compose/local/docker-compose.yaml` and `env/postgres.env`.
+
+- Set the local `api` and `volume-init` image lines to a real published image reference.
+- Replace `POSTGRES_PASSWORD` with a strong random value.
+- Leave `OBSURA_API_BIND_ADDRESS=127.0.0.1` unless you have a deliberate reason to expose the API differently.
+
+5. Optional standalone preflight:
+
+```bash
+obsuractl doctor local
 ```
 
 Without the CLI, the repository stays fully operable through the helper scripts and direct Compose commands:
@@ -128,6 +159,9 @@ Both primary stacks:
 - initialize writable app storage for a non-root runtime
 - include healthchecks
 - publish the API only on localhost by default
+- use fixed container names per environment for easier operator inspection
+
+Because the stack now uses fixed container names such as `obsura-local-api` and `obsura-production-api`, do not try to run duplicate copies of the same environment on one host.
 
 ## Environment Files
 
@@ -138,6 +172,11 @@ Real operator-managed env files live under `env/` and are gitignored:
 - `env/postgres.env`
 
 The compose files depend on these env files both for container runtime values and for Compose interpolation. Manual `docker compose` usage must pass all three env files, not just one of them.
+
+Image references are intentionally set directly in the compose files so operators can open one stack file and see the exact images that will run:
+
+- `compose/local/docker-compose.yaml`
+- `compose/production/docker-compose.yaml`
 
 ## Tags vs Digests
 
@@ -151,7 +190,7 @@ Tags are easier to read. Digests are safer because they pin the exact image you 
 
 ## What Must Be Customized Before Production
 
-- `OBSURA_API_IMAGE`
+- the `api` and `volume-init` image lines in `compose/production/docker-compose.yaml`
 - `POSTGRES_PASSWORD`
 - hostname and certificate settings in your reverse proxy config
 - any storage volume naming needed for the target host
@@ -182,7 +221,8 @@ Common commands:
 ```bash
 obsuractl --help
 obsuractl up --help
-obsuractl init
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
+obsuractl up local
 obsuractl doctor production
 obsuractl up production
 obsuractl status production
@@ -199,7 +239,7 @@ Operational behavior:
 
 - `obsuractl up`, `update`, and `restore` wrap scripts that wait for API health before returning success
 - `obsuractl status` shows both Compose status and the running API image summary when a container exists
-- `obsuractl rollback` restores the previous `OBSURA_API_IMAGE` value if the recreate step fails
+- `obsuractl rollback` restores the previous compose-file image if the recreate step fails
 - `obsuractl restore` remains destructive and requires explicit `--yes`
 
 Help and manual:
@@ -224,12 +264,11 @@ Typical first-run flow with a downloaded binary:
 
 ```bash
 cd /path/to/obsura-deploy
-obsuractl init
-$EDITOR env/global.env
-$EDITOR env/postgres.env
-obsuractl doctor local
+obsuractl init --quickstart-local --image ghcr.io/obsura/obsura-api:<published-tag-or-digest>
 obsuractl up local
 ```
+
+If you prefer a guided prompt instead of passing `--image` on the command line, run plain `obsuractl init` from an interactive terminal and accept the local quickstart prompt.
 
 ## GitHub Release Model
 

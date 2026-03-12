@@ -20,7 +20,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         "rollback",
         summary="Set a previously approved image reference and recreate the selected environment.",
         purpose=(
-            "Write a reviewed tag or digest into env/global.env, then run the documented update workflow.",
+            "Write a reviewed tag or digest into the selected compose file, then run the documented update workflow.",
             "Rollback is explicit. You must provide the exact target image reference.",
         ),
         wraps=("scripts/rollback.sh <environment> <image>", "scripts/rollback.ps1 -Environment <environment> -ToImage <image>"),
@@ -29,9 +29,9 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             "obsuractl rollback local --to-image ghcr.io/obsura/obsura-api:0.1.1",
         ),
         notes=(
-            "Rollback changes env/global.env in the selected checkout.",
+            "Rollback changes the compose file for the selected checkout.",
             "Use a previously validated tag or digest. Do not guess.",
-            "If the recreate fails, the rollback script restores the previous OBSURA_API_IMAGE value in env/global.env.",
+            "If the recreate fails, the rollback script restores the previous image in the compose file.",
         ),
     )
     parser.add_argument(
@@ -43,7 +43,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
     parser.add_argument(
         "--to-image",
         required=True,
-        help="published tag or digest to write into env/global.env before recreating services",
+        help="published tag or digest to write into the selected compose file before recreating services",
     )
     parser.set_defaults(handler=handle)
 

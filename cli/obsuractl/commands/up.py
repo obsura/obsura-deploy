@@ -23,7 +23,8 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             "obsuractl --repo-root /srv/obsura-deploy up production",
         ),
         notes=(
-            "Run obsuractl init and obsuractl doctor before the first start.",
+            "Fastest local path: obsuractl init --quickstart-local --image <published-tag-or-digest>, then obsuractl up local.",
+            "obsuractl up already validates the selected stack before it starts anything.",
             "The production stack still binds the API to localhost by default.",
             "The wrapped deploy script waits for the API container health check before completing.",
         ),
