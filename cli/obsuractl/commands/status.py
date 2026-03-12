@@ -3,7 +3,14 @@ from __future__ import annotations
 import argparse
 
 from .. import config
-from ..helpers import compose_command, ensure_stack_access, print_compose_manual_equivalent, print_stack_context, run
+from ..helpers import (
+    compose_command,
+    ensure_stack_access,
+    print_compose_manual_equivalent,
+    print_running_service_state,
+    print_stack_context,
+    run,
+)
 from ..ui import add_command_parser
 
 
@@ -21,7 +28,10 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
             "obsuractl status local",
             "obsuractl status production",
         ),
-        notes=("Use obsuractl logs when you need detailed service output.",),
+        notes=(
+            "Status also prints the running API image reference and image id when a container exists.",
+            "Use obsuractl logs when you need detailed service output.",
+        ),
     )
     parser.add_argument(
         "environment",
@@ -37,4 +47,5 @@ def handle(args: argparse.Namespace) -> int:
     print_stack_context(stack, action="status")
     print_compose_manual_equivalent(stack, "ps")
     run(compose_command(stack, "ps"))
+    print_running_service_state(stack, "api")
     return 0

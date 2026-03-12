@@ -16,6 +16,8 @@ Script form:
 bash scripts/rollback.sh production ghcr.io/obsura/obsura-api@sha256:<previous-digest>
 ```
 
+The rollback scripts update `env/global.env`, recreate the stack, wait for API health, and restore the previous `OBSURA_API_IMAGE` value if the recreate step fails.
+
 Manual equivalent:
 
 1. Set `OBSURA_API_IMAGE` in `env/global.env` back to the previously approved image.
@@ -30,6 +32,8 @@ bash scripts/update.sh production
 - `obsuractl status production`
 - `curl http://127.0.0.1:8000/api/v1/health`
 - `obsuractl logs production api --tail 200`
+
+`obsuractl status production` prints the running API image reference and image id so you can verify that the previous release is actually back in service.
 
 ## When Image Reversion Is Not Enough
 

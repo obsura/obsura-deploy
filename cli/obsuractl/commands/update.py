@@ -24,6 +24,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         notes=(
             "Set OBSURA_API_IMAGE to a reviewed tag or digest before updating.",
             "For production, prefer an immutable digest over a mutable tag.",
+            "The wrapped update script waits for API health and prints the running image summary.",
         ),
     )
     parser.add_argument(

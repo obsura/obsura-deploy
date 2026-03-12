@@ -31,6 +31,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         notes=(
             "Rollback changes env/global.env in the selected checkout.",
             "Use a previously validated tag or digest. Do not guess.",
+            "If the recreate fails, the rollback script restores the previous OBSURA_API_IMAGE value in env/global.env.",
         ),
     )
     parser.add_argument(

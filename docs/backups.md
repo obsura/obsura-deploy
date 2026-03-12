@@ -31,6 +31,8 @@ obsuractl backup production
 ```
 
 `obsuractl backup` is a wrapper around the documented backup scripts. It does not implement a separate backup engine.
+The backup scripts fail if the configured Obsura storage volume does not exist, which avoids silently creating an empty replacement volume during backup.
+Backup and restore use the current PostgreSQL credentials from `env/postgres.env`, so those values must still match the live database.
 
 Scripts:
 
@@ -53,6 +55,7 @@ Restore is full replacement, not selective recovery. The documented restore work
 5. loads the SQL dump
 6. re-runs storage initialization
 7. starts the full stack
+8. waits for API health before reporting success
 
 Recommended command:
 
@@ -60,11 +63,14 @@ Recommended command:
 obsuractl restore production backups/production/<timestamp> --yes
 ```
 
+Before it overwrites anything, the restore workflow prints the backup metadata when `metadata.txt` is present. That gives the operator one last check of the source environment, image reference, and storage volume name.
+
 ## What This Repo Automates
 
 - creating a logical PostgreSQL dump
 - archiving the app data volume
 - restoring those artifacts back into the Compose-managed volumes
+- recording simple backup metadata such as environment, image reference, storage volume, and database name
 
 ## What This Repo Does Not Automate
 
@@ -73,3 +79,4 @@ obsuractl restore production backups/production/<timestamp> --yes
 - retention policy
 - point-in-time recovery
 - cross-host disaster recovery testing
+- PostgreSQL password rotation inside an already-initialized database cluster

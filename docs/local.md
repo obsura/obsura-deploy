@@ -54,6 +54,8 @@ obsuractl doctor local
 obsuractl up local
 ```
 
+`obsuractl up local` waits for the API container healthcheck before returning success.
+
 Manual helper scripts:
 
 ```bash
@@ -80,6 +82,8 @@ docker compose \
 - `curl http://127.0.0.1:8000/api/v1/health`
 - `obsuractl status local`
 - `obsuractl logs local api --follow`
+
+`obsuractl status local` also prints the running API image reference and image id when the container exists.
 
 If you changed `OBSURA_API_HOST_PORT`, use that port instead of `8000`.
 

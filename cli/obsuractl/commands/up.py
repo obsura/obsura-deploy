@@ -25,6 +25,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         notes=(
             "Run obsuractl init and obsuractl doctor before the first start.",
             "The production stack still binds the API to localhost by default.",
+            "The wrapped deploy script waits for the API container health check before completing.",
         ),
     )
     parser.add_argument(

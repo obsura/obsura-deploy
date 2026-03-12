@@ -31,5 +31,15 @@ obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" pull
 echo "Starting stack..."
 obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" up -d --remove-orphans
 
+echo "Waiting for API health..."
+if ! obsura_wait_for_service_health "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" api 180; then
+  echo "API did not become healthy within 180 seconds. Recent logs:" >&2
+  obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" logs --tail 200 api postgres || true
+  exit 1
+fi
+
 echo "Current service state:"
 obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" ps
+
+echo "Running API container:"
+obsura_print_running_service_state "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" api

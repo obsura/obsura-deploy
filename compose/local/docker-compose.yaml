@@ -3,15 +3,16 @@ name: obsura-local
 services:
   volume-init:
     image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-volume-init
     restart: "no"
     user: "0:0"
     entrypoint: ["/bin/sh", "-ec"]
     command: |
       runtime_user="${OBSURA_RUNTIME_USER:-obsura}"
-      uid="$(id -u "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_UID:-1000}")"
-      gid="$(id -g "${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_GID:-1000}")"
+      uid="$(id -u "$${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_UID:-1000}")"
+      gid="$(id -g "$${runtime_user}" 2>/dev/null || echo "${OBSURA_RUNTIME_GID:-1000}")"
       mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
-      chown -R "${uid}:${gid}" /var/lib/obsura
+      chown -R "$${uid}:$${gid}" /var/lib/obsura
       chmod -R u+rwX,go-rwx /var/lib/obsura
     volumes:
       - obsura-data:/var/lib/obsura
@@ -20,6 +21,7 @@ services:
 
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-postgres
     restart: unless-stopped
     init: true
     env_file:
@@ -36,7 +38,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test:
+        ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -51,6 +54,7 @@ services:
 
   api:
     image: ${OBSURA_API_IMAGE:?set OBSURA_API_IMAGE in env/global.env}
+    container_name: ${COMPOSE_PROJECT_NAME:-obsura}-api
     restart: unless-stopped
     init: true
     env_file:

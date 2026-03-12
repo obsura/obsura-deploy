@@ -4,6 +4,12 @@
 
 This repository also publishes standalone `obsuractl` binaries through GitHub Releases.
 
+Current maturity:
+
+- single-host Docker Compose deployment repository
+- operator-ready beta for early self-hosters
+- stronger than a first draft, but still awaiting broader live confirmation across real upgrade and recovery events
+
 ## Repo Purpose
 
 This repository is the source of truth for:
@@ -188,6 +194,13 @@ obsuractl restore production backups/production/<timestamp> --yes
 ```
 
 Manual equivalents remain first-class and documented. The CLI wraps those workflows; it does not define a parallel deployment architecture.
+
+Operational behavior:
+
+- `obsuractl up`, `update`, and `restore` wrap scripts that wait for API health before returning success
+- `obsuractl status` shows both Compose status and the running API image summary when a container exists
+- `obsuractl rollback` restores the previous `OBSURA_API_IMAGE` value if the recreate step fails
+- `obsuractl restore` remains destructive and requires explicit `--yes`
 
 Help and manual:
 

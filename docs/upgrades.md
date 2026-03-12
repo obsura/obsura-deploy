@@ -20,6 +20,7 @@ obsuractl status production
 ```
 
 `obsuractl update production` uses the image reference currently written in `env/global.env`. It does not discover or select an image for you.
+The wrapped update scripts wait for API health before returning success and then print the running API image summary.
 
 Script form:
 
@@ -52,5 +53,7 @@ OBSURA_API_IMAGE=ghcr.io/obsura/obsura-api:<release-tag>
 - `obsuractl status production`
 - `curl http://127.0.0.1:8000/api/v1/health`
 - recent `api` and `postgres` logs
+
+Use `obsuractl status production` to confirm that the running API image matches the reviewed tag or digest you promoted into `env/global.env`.
 
 If the release can affect schema or stored data, treat rollback as a restore-capable operation, not only an image swap.

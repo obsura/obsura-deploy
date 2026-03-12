@@ -47,6 +47,14 @@ The published image is expected to run as a non-root user while still needing wr
 - use strong random PostgreSQL passwords
 - restrict access to backup directories
 - rotate credentials through your normal operator process
+- treat `postgres.sql` and `obsura-data.tgz` as live sensitive data
+
+## Operational Safety Defaults
+
+- restore requires explicit confirmation
+- rollback uses an explicit target image reference
+- backup refuses to archive a missing storage volume, which avoids silently creating an empty backup target
+- deploy, update, and restore wait for the API healthcheck before they report success
 
 ## Hardening Limits
 

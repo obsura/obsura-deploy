@@ -25,11 +25,24 @@ POSTGRES_ENV="$ROOT_DIR/env/postgres.env"
 obsura_require_files "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV"
 
 CURRENT_IMAGE="$(obsura_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE || true)"
+ROLLBACK_UPDATED="0"
+
+restore_original_image() {
+  if [[ "$ROLLBACK_UPDATED" == "1" && -n "$CURRENT_IMAGE" ]]; then
+    echo "Rollback failed. Restoring OBSURA_API_IMAGE in $GLOBAL_ENV back to $CURRENT_IMAGE..." >&2
+    obsura_set_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE "$CURRENT_IMAGE"
+  fi
+}
+
+trap restore_original_image ERR
 
 obsura_print_stack_context "$ENVIRONMENT" "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV" "$CURRENT_IMAGE"
 echo "Target rollback image: $TARGET_IMAGE"
 echo "Updating OBSURA_API_IMAGE in $GLOBAL_ENV..."
 obsura_set_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE "$TARGET_IMAGE"
+ROLLBACK_UPDATED="1"
 
 echo "Recreating services with the rollback image..."
 bash "$SCRIPT_DIR/update.sh" "$ENVIRONMENT"
+trap - ERR
+echo "Rollback complete."

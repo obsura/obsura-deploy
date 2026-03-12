@@ -68,7 +68,7 @@ obsura_env_value() {
 
 obsura_require_real_image_reference() {
   local image_ref="$1"
-  if [[ -z "$image_ref" || "$image_ref" == *"replace-with-"* ]]; then
+  if [[ -z "$image_ref" || "$image_ref" == *"replace-with-"* || "$image_ref" == *"change-me"* || "$image_ref" == *"placeholder"* || "$image_ref" == *"example"* ]]; then
     echo "Set OBSURA_API_IMAGE in env/global.env to a real published tag or digest before continuing." >&2
     exit 1
   fi
@@ -98,6 +98,90 @@ obsura_print_stack_context() {
   echo "  - $postgres_env"
   if [[ -n "$image_ref" ]]; then
     echo "API image: $image_ref"
+  fi
+}
+
+obsura_compose_service_container_id() {
+  local compose_file="$1"
+  local global_env="$2"
+  local postgres_env="$3"
+  local api_env="$4"
+  local service="$5"
+
+  obsura_compose "$compose_file" "$global_env" "$postgres_env" "$api_env" ps -q "$service" | tr -d '\r'
+}
+
+obsura_wait_for_service_health() {
+  local compose_file="$1"
+  local global_env="$2"
+  local postgres_env="$3"
+  local api_env="$4"
+  local service="$5"
+  local timeout_seconds="${6:-180}"
+  local elapsed=0
+  local interval=2
+  local container_id status health
+
+  while (( elapsed < timeout_seconds )); do
+    container_id="$(obsura_compose_service_container_id "$compose_file" "$global_env" "$postgres_env" "$api_env" "$service")"
+    if [[ -n "$container_id" ]]; then
+      status="$(docker inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || true)"
+      health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)"
+      if [[ "$health" == "healthy" || ( "$health" == "none" && "$status" == "running" ) ]]; then
+        return 0
+      fi
+    fi
+    sleep "$interval"
+    elapsed=$(( elapsed + interval ))
+  done
+
+  return 1
+}
+
+obsura_print_running_service_state() {
+  local compose_file="$1"
+  local global_env="$2"
+  local postgres_env="$3"
+  local api_env="$4"
+  local service="${5:-api}"
+  local container_id config_image image_id state health
+
+  container_id="$(obsura_compose_service_container_id "$compose_file" "$global_env" "$postgres_env" "$api_env" "$service")"
+  if [[ -z "$container_id" ]]; then
+    echo "Service '$service' does not currently have a container."
+    return 1
+  fi
+
+  config_image="$(docker inspect --format '{{.Config.Image}}' "$container_id" 2>/dev/null || true)"
+  image_id="$(docker inspect --format '{{.Image}}' "$container_id" 2>/dev/null || true)"
+  state="$(docker inspect --format '{{.State.Status}}' "$container_id" 2>/dev/null || true)"
+  health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container_id" 2>/dev/null || true)"
+
+  echo "Service: $service"
+  echo "  Container id: $container_id"
+  echo "  State: ${state:-unknown}"
+  echo "  Health: ${health:-unknown}"
+  if [[ -n "$config_image" ]]; then
+    echo "  Configured image: $config_image"
+  fi
+  if [[ -n "$image_id" ]]; then
+    echo "  Image id: $image_id"
+  fi
+}
+
+obsura_require_docker_volume() {
+  local volume_name="$1"
+  if ! docker volume inspect "$volume_name" > /dev/null 2>&1; then
+    echo "Required Docker volume not found: $volume_name" >&2
+    exit 1
+  fi
+}
+
+obsura_ensure_docker_volume() {
+  local volume_name="$1"
+  if ! docker volume inspect "$volume_name" > /dev/null 2>&1; then
+    echo "Creating Docker volume: $volume_name"
+    docker volume create "$volume_name" > /dev/null
   fi
 }
 

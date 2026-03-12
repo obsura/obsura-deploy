@@ -20,12 +20,13 @@ obsura_require_files "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_ENV" "$POSTGRES_ENV"
 
 POSTGRES_USER="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_USER || true)"
 POSTGRES_DB="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_DB || true)"
+POSTGRES_PASSWORD="$(obsura_env_value "$POSTGRES_ENV" POSTGRES_PASSWORD || true)"
 OBSURA_STORAGE_VOLUME="$(obsura_env_value "$GLOBAL_ENV" OBSURA_STORAGE_VOLUME || true)"
 BACKUP_ROOT="$(obsura_env_value "$GLOBAL_ENV" BACKUP_ROOT || true)"
 OBSURA_API_IMAGE="$(obsura_env_value "$GLOBAL_ENV" OBSURA_API_IMAGE || true)"
 
-if [[ -z "$POSTGRES_USER" || -z "$POSTGRES_DB" ]]; then
-  echo "POSTGRES_USER and POSTGRES_DB must be set in env/postgres.env." >&2
+if [[ -z "$POSTGRES_USER" || -z "$POSTGRES_DB" || -z "$POSTGRES_PASSWORD" ]]; then
+  echo "POSTGRES_USER, POSTGRES_DB, and POSTGRES_PASSWORD must be set in env/postgres.env." >&2
   exit 1
 fi
 
@@ -54,24 +55,26 @@ obsura_print_stack_context "$ENVIRONMENT" "$COMPOSE_FILE" "$GLOBAL_ENV" "$API_EN
 echo "Backup output: $OUTPUT_DIR_ABS"
 echo "Storage volume: $OBSURA_STORAGE_VOLUME"
 
+obsura_require_docker_volume "$OBSURA_STORAGE_VOLUME"
+
 echo "Ensuring postgres is running..."
 obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" up -d postgres
 
 echo "Waiting for postgres readiness..."
 for _ in {1..30}; do
-  if obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; then
+  if obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; then
     break
   fi
   sleep 2
 done
 
-if ! obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; then
+if ! obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; then
   echo "Postgres did not become ready in time." >&2
   exit 1
 fi
 
 echo "Writing PostgreSQL logical backup..."
-obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T postgres pg_dump \
+obsura_compose "$COMPOSE_FILE" "$GLOBAL_ENV" "$POSTGRES_ENV" "$API_ENV" exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" postgres pg_dump \
   -U "$POSTGRES_USER" \
   -d "$POSTGRES_DB" \
   --clean \
@@ -91,5 +94,10 @@ printf 'environment=%s\ncreated_at=%s\napi_image=%s\nstorage_volume=%s\n' \
   "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
   "${OBSURA_API_IMAGE:-unknown}" \
   "$OBSURA_STORAGE_VOLUME" > "$OUTPUT_DIR_ABS/metadata.txt"
+
+printf 'postgres_db=%s\npostgres_user=%s\ncompose_file=%s\n' \
+  "$POSTGRES_DB" \
+  "$POSTGRES_USER" \
+  "$COMPOSE_FILE" >> "$OUTPUT_DIR_ABS/metadata.txt"
 
 echo "Backup created at $OUTPUT_DIR_ABS"

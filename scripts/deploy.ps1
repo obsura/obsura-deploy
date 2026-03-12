@@ -26,13 +26,24 @@ $ComposeArgs = Get-ObsuraComposeArgs -ComposeFile $ComposeFile -GlobalEnv $Globa
 Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $Vars["OBSURA_API_IMAGE"]
 
 Write-Host "Validating compose configuration for $Environment..."
-docker @ComposeArgs config | Out-Null
+Invoke-ObsuraNative -FilePath "docker" -ArgumentList ($ComposeArgs + @("config")) -Context "docker compose config for $Environment" | Out-Null
 
 Write-Host "Pulling images..."
-docker @ComposeArgs pull
+Invoke-ObsuraNative -FilePath "docker" -ArgumentList ($ComposeArgs + @("pull")) -Context "docker compose pull for $Environment"
 
 Write-Host "Starting stack..."
-docker @ComposeArgs up -d --remove-orphans
+Invoke-ObsuraNative -FilePath "docker" -ArgumentList ($ComposeArgs + @("up", "-d", "--remove-orphans")) -Context "docker compose up for $Environment"
+
+Write-Host "Waiting for API health..."
+$Healthy = Wait-ObsuraServiceHealth -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv -Service "api" -TimeoutSeconds 180
+if (-not $Healthy) {
+    Write-Host "API did not become healthy within 180 seconds. Recent logs:"
+    docker @ComposeArgs logs --tail 200 api postgres
+    exit 1
+}
 
 Write-Host "Current service state:"
-docker @ComposeArgs ps
+Invoke-ObsuraNative -FilePath "docker" -ArgumentList ($ComposeArgs + @("ps")) -Context "docker compose ps for $Environment"
+
+Write-Host "Running API container:"
+Show-ObsuraRunningServiceState -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv -Service "api"

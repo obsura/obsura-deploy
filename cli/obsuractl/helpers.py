@@ -308,6 +308,53 @@ def print_doctor_target(environment: str) -> None:
         print(f"  - {path}")
 
 
+def compose_service_container_id(stack: config.StackPaths, service: str) -> str | None:
+    result = run(compose_command(stack, "ps", "-q", service), capture_output=True, check=False, echo=False)
+    if result.returncode != 0:
+        return None
+    container_id = (result.stdout or "").strip()
+    return container_id or None
+
+
+def inspect_container_fields(container_id: str) -> tuple[str | None, str | None, str | None, str | None]:
+    inspect = run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            "{{.Config.Image}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.Image}}",
+            container_id,
+        ],
+        capture_output=True,
+        check=False,
+        echo=False,
+    )
+    if inspect.returncode != 0:
+        return None, None, None, None
+
+    parts = (inspect.stdout or "").strip().split("|", 3)
+    if len(parts) != 4:
+        return None, None, None, None
+    return parts[0] or None, parts[1] or None, parts[2] or None, parts[3] or None
+
+
+def print_running_service_state(stack: config.StackPaths, service: str = "api") -> None:
+    container_id = compose_service_container_id(stack, service)
+    if not container_id:
+        print(f"{ui.status_label('warn')} Service '{service}' does not currently have a container.")
+        return
+
+    config_image, state, health, image_id = inspect_container_fields(container_id)
+    print(ui.key_label(f"Running service summary ({service}):"))
+    print(f"  Container id: {container_id}")
+    print(f"  State: {state or 'unknown'}")
+    print(f"  Health: {health or 'unknown'}")
+    if config_image:
+        print(f"  Configured image: {config_image}")
+    if image_id:
+        print(f"  Image id: {image_id}")
+
+
 def ensure_stack_ready(environment: str) -> config.StackPaths:
     stack = config.resolve_stack(environment)
     result = collect_doctor_result(environment)

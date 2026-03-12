@@ -49,3 +49,4 @@ Current important wiring:
 - Replace every placeholder before production use.
 - Prefer image digests over tags in production.
 - Change volume names only if the host needs naming isolation.
+- Keep `POSTGRES_PASSWORD` in `env/postgres.env` aligned with the actual running PostgreSQL instance. Editing the env file alone does not rotate the live database password.

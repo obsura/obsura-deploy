@@ -8,10 +8,10 @@ services:
     entrypoint: ["/bin/sh", "-ec"]
     command: |
       runtime_user="obsura"
-      uid="$(id -u "${runtime_user}" 2>/dev/null || echo 1000)"
-      gid="$(id -g "${runtime_user}" 2>/dev/null || echo 1000)"
+      uid="$(id -u "$${runtime_user}" 2>/dev/null || echo 1000)"
+      gid="$(id -g "$${runtime_user}" 2>/dev/null || echo 1000)"
       mkdir -p /var/lib/obsura/uploads /var/lib/obsura/outputs
-      chown -R "${uid}:${gid}" /var/lib/obsura
+      chown -R "$${uid}:$${gid}" /var/lib/obsura
       chmod -R u+rwX,go-rwx /var/lib/obsura
     volumes:
       - obsura-data:/var/lib/obsura

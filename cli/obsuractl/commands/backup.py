@@ -24,6 +24,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         notes=(
             "This is not a full backup platform. It creates the documented local backup artifacts only.",
             "Verify the backup contents before relying on it.",
+            "Backup fails if the configured Obsura storage volume does not exist yet.",
         ),
     )
     parser.add_argument(

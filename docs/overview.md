@@ -2,6 +2,12 @@
 
 `obsura-deploy` exists to run released Obsura services from published container images. It is the deployment and operations repository. It is not the application implementation repository.
 
+Current maturity:
+
+- single-host Docker Compose deployment repository
+- operator-ready beta
+- intentionally conservative in scope
+
 ## Ownership Boundary
 
 `obsura-api` owns:

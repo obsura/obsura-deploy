@@ -36,6 +36,27 @@ function Assert-ObsuraDocker {
     }
 }
 
+function Assert-ObsuraLastExitCode {
+    param([string]$Context)
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Context failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-ObsuraNative {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [string[]]$ArgumentList,
+        [string]$Context
+    )
+
+    & $FilePath @ArgumentList
+    $label = if ($Context) { $Context } else { "$FilePath $($ArgumentList -join ' ')" }
+    Assert-ObsuraLastExitCode -Context $label
+}
+
 function Get-ObsuraEnvMap {
     param([string[]]$Paths)
 
@@ -73,7 +94,7 @@ function Get-ObsuraEnvMap {
 function Assert-ObsuraRealImageReference {
     param([hashtable]$Vars)
 
-    if (-not $Vars.ContainsKey("OBSURA_API_IMAGE") -or [string]::IsNullOrWhiteSpace($Vars["OBSURA_API_IMAGE"]) -or $Vars["OBSURA_API_IMAGE"] -match "replace-with-") {
+    if (-not $Vars.ContainsKey("OBSURA_API_IMAGE") -or [string]::IsNullOrWhiteSpace($Vars["OBSURA_API_IMAGE"]) -or $Vars["OBSURA_API_IMAGE"] -match "replace-with-|change-me|placeholder|example") {
         throw "Set OBSURA_API_IMAGE in env/global.env to a real published tag or digest before continuing."
     }
 }
@@ -104,6 +125,102 @@ function Show-ObsuraStackContext {
     Write-Host "  - $PostgresEnv"
     if ($ImageRef) {
         Write-Host "API image: $ImageRef"
+    }
+}
+
+function Get-ObsuraComposeServiceContainerId {
+    param(
+        [string]$ComposeFile,
+        [string]$GlobalEnv,
+        [string]$PostgresEnv,
+        [string]$ApiEnv,
+        [string]$Service
+    )
+
+    $composeArgs = Get-ObsuraComposeArgs -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv
+    $containerId = (& docker @composeArgs ps -q $Service | Out-String).Trim()
+    return $containerId
+}
+
+function Wait-ObsuraServiceHealth {
+    param(
+        [string]$ComposeFile,
+        [string]$GlobalEnv,
+        [string]$PostgresEnv,
+        [string]$ApiEnv,
+        [string]$Service,
+        [int]$TimeoutSeconds = 180
+    )
+
+    $elapsed = 0
+    while ($elapsed -lt $TimeoutSeconds) {
+        $containerId = Get-ObsuraComposeServiceContainerId -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv -Service $Service
+        if ($containerId) {
+            $state = (& docker inspect --format "{{.State.Status}}" $containerId | Out-String).Trim()
+            $health = (& docker inspect --format "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}" $containerId | Out-String).Trim()
+            if ($health -eq "healthy" -or ($health -eq "none" -and $state -eq "running")) {
+                return $true
+            }
+        }
+
+        Start-Sleep -Seconds 2
+        $elapsed += 2
+    }
+
+    return $false
+}
+
+function Show-ObsuraRunningServiceState {
+    param(
+        [string]$ComposeFile,
+        [string]$GlobalEnv,
+        [string]$PostgresEnv,
+        [string]$ApiEnv,
+        [string]$Service = "api"
+    )
+
+    $containerId = Get-ObsuraComposeServiceContainerId -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -PostgresEnv $PostgresEnv -ApiEnv $ApiEnv -Service $Service
+    if (-not $containerId) {
+        Write-Host "Service '$Service' does not currently have a container."
+        return
+    }
+
+    $configImage = (& docker inspect --format "{{.Config.Image}}" $containerId | Out-String).Trim()
+    $imageId = (& docker inspect --format "{{.Image}}" $containerId | Out-String).Trim()
+    $state = (& docker inspect --format "{{.State.Status}}" $containerId | Out-String).Trim()
+    $health = (& docker inspect --format "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}" $containerId | Out-String).Trim()
+
+    Write-Host "Service: $Service"
+    Write-Host "  Container id: $containerId"
+    Write-Host "  State: $state"
+    Write-Host "  Health: $health"
+    if ($configImage) {
+        Write-Host "  Configured image: $configImage"
+    }
+    if ($imageId) {
+        Write-Host "  Image id: $imageId"
+    }
+}
+
+function Assert-ObsuraDockerVolume {
+    param([string]$VolumeName)
+
+    docker volume inspect $VolumeName *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Required Docker volume not found: $VolumeName"
+    }
+}
+
+function Ensure-ObsuraDockerVolume {
+    param([string]$VolumeName)
+
+    docker volume inspect $VolumeName *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Creating Docker volume: $VolumeName"
+        docker volume create $VolumeName *> $null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to create Docker volume: $VolumeName"
+        }
     }
 }
 

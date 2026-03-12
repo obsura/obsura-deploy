@@ -171,17 +171,17 @@ Binary branding assets:
 - `restart`
   Runs `docker compose restart` for the selected environment, optionally scoped to services.
 - `status`
-  Runs `docker compose ps`.
+  Runs `docker compose ps` and then prints the running API image summary when a container exists.
 - `logs`
   Runs `docker compose logs` against the selected environment and optional services.
 - `update`
-  Runs the update script using the current `OBSURA_API_IMAGE` in `env/global.env`.
+  Runs the update script using the current `OBSURA_API_IMAGE` in `env/global.env`. The wrapped script waits for API health before reporting success.
 - `rollback`
-  Writes a previously approved image reference into `env/global.env`, then runs the update script.
+  Writes a previously approved image reference into `env/global.env`, then runs the update script. If the recreate step fails, the script restores the previous `OBSURA_API_IMAGE` value.
 - `backup`
-  Runs the backup script and reports the output location.
+  Runs the backup script and reports the output location. Backup fails if the configured storage volume does not exist yet.
 - `restore`
-  Runs the restore script and requires explicit `--yes` confirmation.
+  Runs the restore script, prints backup metadata when present, waits for API health, and requires explicit `--yes` confirmation.
 
 ## Manual Equivalents
 

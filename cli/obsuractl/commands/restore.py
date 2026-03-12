@@ -24,6 +24,7 @@ def register(subparsers: argparse._SubParsersAction[argparse.ArgumentParser]) ->
         notes=(
             "Restore requires --yes because it replaces the current database and app data volume.",
             "Run obsuractl backup first if you need a safety copy of the current state.",
+            "The wrapped restore script prints backup metadata, recreates storage permissions, and waits for API health before completing.",
         ),
     )
     parser.add_argument(

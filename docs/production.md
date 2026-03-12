@@ -53,6 +53,8 @@ obsuractl doctor production
 obsuractl up production
 ```
 
+`obsuractl up production` waits for the API container healthcheck before it reports success.
+
 Helper script:
 
 ```bash
@@ -96,8 +98,11 @@ Example configs:
 - verify proxy reachability through the public hostname
 - inspect recent container logs
 
+`obsuractl status production` also prints the running API image reference and image id when the container exists. Use that output to confirm the image you meant to deploy is the image that is actually running.
+
 ## Operational Caveats
 
 - If the image runtime user changes, update the `volume-init` logic before rollout.
 - If the release changes schema or storage behavior, treat the upgrade as data-affecting.
+- If you change `POSTGRES_PASSWORD` in `env/postgres.env`, make sure the running PostgreSQL instance is updated through your database administration process. The env file alone does not rotate the live password.
 - Compose is a solid single-host choice here, but it is not a replacement for host hardening, patching, monitoring, or off-host backups.

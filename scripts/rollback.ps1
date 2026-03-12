@@ -31,7 +31,17 @@ if (-not $TargetImage -or $TargetImage -match "replace-with-|change-me|placehold
 Show-ObsuraStackContext -Environment $Environment -ComposeFile $ComposeFile -GlobalEnv $GlobalEnv -ApiEnv $ApiEnv -PostgresEnv $PostgresEnv -ImageRef $CurrentImage
 Write-Host "Target rollback image: $TargetImage"
 Write-Host "Updating OBSURA_API_IMAGE in $GlobalEnv..."
-Set-ObsuraEnvValue -Path $GlobalEnv -Key "OBSURA_API_IMAGE" -Value $TargetImage
+try {
+    Set-ObsuraEnvValue -Path $GlobalEnv -Key "OBSURA_API_IMAGE" -Value $TargetImage
 
-Write-Host "Recreating services with the rollback image..."
-& (Join-Path $ScriptDir "update.ps1") -Environment $Environment
+    Write-Host "Recreating services with the rollback image..."
+    & (Join-Path $ScriptDir "update.ps1") -Environment $Environment
+    Write-Host "Rollback complete."
+}
+catch {
+    if ($CurrentImage) {
+        Write-Warning "Rollback failed. Restoring OBSURA_API_IMAGE in $GlobalEnv back to $CurrentImage."
+        Set-ObsuraEnvValue -Path $GlobalEnv -Key "OBSURA_API_IMAGE" -Value $CurrentImage
+    }
+    throw
+}

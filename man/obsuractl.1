@@ -85,7 +85,8 @@ Restart the whole stack or selected services.
 .TP
 .B status
 Show container and service status using
-.BR "docker compose ps" .
+.BR "docker compose ps" ,
+then print the running API image summary when a container exists.
 .TP
 .B logs
 Show logs for the whole stack or selected services.
@@ -93,11 +94,15 @@ Show logs for the whole stack or selected services.
 .B update
 Pull newer images and recreate the selected environment using the current image reference from
 .BR env/global.env .
+The wrapped script waits for API health before returning success.
 .TP
 .B rollback
 Write a reviewed image tag or digest into
 .B env/global.env
 and recreate the selected environment.
+If the recreate step fails, the previous
+.B OBSURA_API_IMAGE
+value is restored.
 .TP
 .B backup
 Run the documented backup workflow for PostgreSQL and persistent app data.
@@ -105,6 +110,7 @@ Run the documented backup workflow for PostgreSQL and persistent app data.
 .B restore
 Run the documented restore workflow. This is destructive and requires
 .BR \-\-yes .
+The restore workflow prints backup metadata when present and waits for API health before reporting success.
 .SH COLORS
 On interactive terminals,
 .B obsuractl
